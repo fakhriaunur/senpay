@@ -11,12 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// contextKey is used for storing values in request context.
-type contextKey string
+// ContextKey is used for storing values in request context.
+type ContextKey string
 
 const (
 	// CtxKeyUserID is the context key for the authenticated user's UUID.
-	CtxKeyUserID contextKey = "user_id"
+	CtxKeyUserID ContextKey = "user_id"
 )
 
 // UserIDFromContext extracts the authenticated user's UUID from the request context.

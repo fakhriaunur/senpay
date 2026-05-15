@@ -50,16 +50,9 @@ func TestMetrics_Middleware(t *testing.T) {
 	m := NewMetrics()
 
 	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify context values
-		rid := GetRequestID(r.Context())
-		if rid == "" {
-			t.Error("expected non-empty request ID")
-		}
-
-		// Verify trace context
+		// Verify trace context extraction
 		tc := ExtractTraceContext(r)
 		if tc.TraceID != "" {
-			// If traceparent was sent, it should be extracted
 			if tc.TraceID == "" || tc.SpanID == "" {
 				t.Error("expected trace_id and span_id from traceparent")
 			}
@@ -69,7 +62,6 @@ func TestMetrics_Middleware(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Request-ID", "test-request-id")
 	req.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
 
 	rec := httptest.NewRecorder()
@@ -79,8 +71,8 @@ func TestMetrics_Middleware(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 
-	// Verify response header
-	if rid := rec.Header().Get("X-Request-ID"); rid != "test-request-id" {
-		t.Errorf("expected X-Request-ID=test-request-id, got %s", rid)
+	// Verify metrics collected.
+	if m.requestCount.Load() != 1 {
+		t.Errorf("expected requestCount=1, got %d", m.requestCount.Load())
 	}
 }

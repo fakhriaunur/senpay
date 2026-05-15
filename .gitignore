@@ -41,8 +41,8 @@ pgdata/
 .factory/tmp/
 .factory/research/
 
-# Rapid property test artifacts
-testdata/rapid/
+# Rapid property test artifacts (may appear at any directory depth)
+**/testdata/rapid/
 
 # Build artifacts
 /bin/
