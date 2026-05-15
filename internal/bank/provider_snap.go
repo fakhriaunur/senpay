@@ -41,7 +41,7 @@ func NewSnapAdapter(baseURL, clientSecret, partnerID, channelID string) *SnapAda
 }
 
 // Name returns the adapter name.
-func (s *SnapAdapter) Name() string { return "snap" }
+func (s *SnapAdapter) Name() types.BankProvider { return types.BankProviderSnap }
 
 // Credit sends a credit (top-up) request to the mock bank via SNAP protocol.
 func (s *SnapAdapter) Credit(ctx context.Context, req CreditRequest) (*CreditResult, *types.DomainError) {

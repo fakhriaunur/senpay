@@ -25,6 +25,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"senpay/internal/types"
 	"time"
 )
 
@@ -366,7 +368,7 @@ func (m *MockBank) triggerWebhook(externalID, creditBody string) {
 		VANumber:   creditReq.VANumber,
 		AmountSen:  creditReq.AmountSen,
 		ExternalID: externalID,
-		Status:     "success",
+		Status:     types.CallbackSuccess,
 		ReferenceID: fmt.Sprintf("BANK-CALLBACK-%s", externalID),
 	}
 

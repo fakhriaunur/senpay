@@ -6,7 +6,7 @@ import (
 
 // TxEntry represents one side of a financial transaction entry.
 type TxEntry struct {
-	TxType string      // "debit" for sender loss, "credit" for receiver gain
+	TxType types.EntryType // "debit" for sender loss, "credit" for receiver gain
 	Amount types.Money
 }
 
@@ -32,7 +32,7 @@ func ExecuteTransfer(senderBalance, receiverBalance, amount types.Money) (TxEven
 		return TxEvent{}, &types.ErrInsufficientBalance
 	}
 	return TxEvent{
-		Debit:  TxEntry{TxType: "debit", Amount: amount},
-		Credit: TxEntry{TxType: "credit", Amount: amount},
+		Debit:  TxEntry{TxType: types.EntryTypeDebit, Amount: amount},
+		Credit: TxEntry{TxType: types.EntryTypeCredit, Amount: amount},
 	}, nil
 }

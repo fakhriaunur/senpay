@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"senpay/internal/types"
+
 	"github.com/google/uuid"
 )
 
@@ -13,16 +15,16 @@ import (
 
 // VATopupRecord represents a VA top-up record stored in PostgreSQL.
 type VATopupRecord struct {
-	ID             uuid.UUID  `json:"id"`
-	IdempotencyKey string     `json:"idempotency_key"`
-	UserID         uuid.UUID  `json:"user_id"`
-	VANumber       string     `json:"va_number"`
-	AmountSen      int64      `json:"amount_sen"`
-	Status         string     `json:"status"` // active, paid, expired
-	CreatedAt      time.Time  `json:"created_at"`
-	ExpiresAt      time.Time  `json:"expires_at"`
-	PaidAt         *time.Time `json:"paid_at,omitempty"`
-	TxLogID        *uuid.UUID `json:"tx_log_id,omitempty"`
+	ID             uuid.UUID       `json:"id"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	UserID         uuid.UUID       `json:"user_id"`
+	VANumber       string          `json:"va_number"`
+	AmountSen      int64           `json:"amount_sen"`
+	Status         types.VAStatus  `json:"status"` // active, paid, expired
+	CreatedAt      time.Time       `json:"created_at"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	PaidAt         *time.Time      `json:"paid_at,omitempty"`
+	TxLogID        *uuid.UUID      `json:"tx_log_id,omitempty"`
 }
 
 // VAStore defines the interface for persisting VA top-up records.

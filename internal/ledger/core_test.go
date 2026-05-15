@@ -160,11 +160,11 @@ func TestExecuteTransfer(t *testing.T) {
 			}
 
 			// Verify debit/credit types.
-			if ev.Debit.TxType != "debit" {
-				t.Errorf("debit type: got %q, want %q", ev.Debit.TxType, "debit")
+			if ev.Debit.TxType != types.EntryTypeDebit {
+				t.Errorf("debit type: got %q, want %q", ev.Debit.TxType, types.EntryTypeDebit)
 			}
-			if ev.Credit.TxType != "credit" {
-				t.Errorf("credit type: got %q, want %q", ev.Credit.TxType, "credit")
+			if ev.Credit.TxType != types.EntryTypeCredit {
+				t.Errorf("credit type: got %q, want %q", ev.Credit.TxType, types.EntryTypeCredit)
 			}
 
 			// Money conservation invariant: sender+receiver total unchanged.
@@ -306,7 +306,7 @@ func TestProperty_ExecuteTransfer_MoneyConservation(t *testing.T) {
 		}
 
 		// Verify debit/credit types.
-		if ev.Debit.TxType != "debit" || ev.Credit.TxType != "credit" {
+		if ev.Debit.TxType != types.EntryTypeDebit || ev.Credit.TxType != types.EntryTypeCredit {
 			t.Fatalf("wrong entry types: debit=%q credit=%q", ev.Debit.TxType, ev.Credit.TxType)
 		}
 

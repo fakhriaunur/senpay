@@ -209,7 +209,7 @@ func (s *Service) Topup(ctx context.Context, userID uuid.UUID, req TopupHTTPRequ
 		UserID:         userID,
 		VANumber:       coreResult.VANumber,
 		AmountSen:      req.AmountSen,
-		Status:         "active",
+		Status:         types.VAStatusActive,
 		CreatedAt:      now,
 		ExpiresAt:      coreResult.ExpiresAt,
 		PaidAt:         nil,
@@ -870,7 +870,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, callback *BankCallback) *t
 	}
 
 	// 3. Verify VA is still active.
-	if vaRecord.Status != "active" {
+	if vaRecord.Status != types.VAStatusActive {
 		slog.Warn("VA already processed", "va_number", callback.VANumber,
 			"status", vaRecord.Status)
 		return &ErrDuplicateRequest

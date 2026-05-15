@@ -51,11 +51,11 @@ type WithdrawRequest struct {
 
 // BankCallback represents a webhook callback from the bank.
 type BankCallback struct {
-	VANumber    string `json:"va_number"`
-	AmountSen   int64  `json:"amount_sen"`
-	ExternalID  string `json:"external_id"`
-	Status      string `json:"status"` // "success" or "failed"
-	ReferenceID string `json:"reference_id,omitempty"`
+	VANumber    string               `json:"va_number"`
+	AmountSen   int64                `json:"amount_sen"`
+	ExternalID  string               `json:"external_id"`
+	Status      types.CallbackStatus `json:"status"` // "success" or "failed"
+	ReferenceID string               `json:"reference_id,omitempty"`
 }
 
 // PaymentRail defines the interface for bank adapter implementations.
@@ -86,7 +86,7 @@ type PaymentRail interface {
 	ParseWebhook(body []byte) (*BankCallback, *types.DomainError)
 
 	// Name returns the adapter name ("snap" or "stub").
-	Name() string
+	Name() types.BankProvider
 }
 
 // ReversalResult represents the result of a reversal request.

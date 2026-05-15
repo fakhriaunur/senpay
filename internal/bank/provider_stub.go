@@ -69,7 +69,7 @@ func NewStubAdapter() *StubAdapter {
 }
 
 // Name returns the adapter name.
-func (s *StubAdapter) Name() string { return "stub" }
+func (s *StubAdapter) Name() types.BankProvider { return types.BankProviderStub }
 
 // SetBehavior configures the simulated behavior for withdraw operations.
 func (s *StubAdapter) SetBehavior(b StubBehavior) {

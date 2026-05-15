@@ -13,6 +13,7 @@ import (
 	"senpay/internal/auth"
 	"senpay/internal/bank"
 	"senpay/internal/config"
+	"senpay/internal/types"
 	"senpay/internal/gateway"
 	"senpay/internal/idempotency"
 	"senpay/internal/ledger"
@@ -110,7 +111,7 @@ func main() {
 
 	// Initialize bank adapter (PaymentRail).
 	var paymentRail bank.PaymentRail
-	if cfg.BankProvider == "snap" {
+	if cfg.BankProvider == types.BankProviderSnap {
 		// Real SNAP adapter contacts the mock bank via HTTP.
 		baseURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)
 		paymentRail = bank.NewSnapAdapter(baseURL, mockBankConfig.ClientSecret,

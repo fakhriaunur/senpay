@@ -5,6 +5,8 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"senpay/internal/types"
 )
 
 // Config holds all application configuration loaded from environment variables.
@@ -28,7 +30,7 @@ type Config struct {
 	SenpaiFullEnabled bool
 
 	// Bank provider: "stub" or "snap"
-	BankProvider string
+	BankProvider types.BankProvider
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -40,7 +42,7 @@ func Load() Config {
 		NatsURL:           getEnv("NATS_URL", "nats://localhost:4222"),
 		JWTSecret:         getEnv("JWT_SECRET", ""),
 		SenpaiFullEnabled: getEnvBool("SENPAI_FULL_ENABLED", false),
-		BankProvider:      getEnv("BANK_PROVIDER", "stub"),
+		BankProvider:      parseBankProvider(getEnv("BANK_PROVIDER", "stub")),
 	}
 }
 
@@ -70,4 +72,13 @@ func getEnvBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+// parseBankProvider parses a bank provider string, defaulting to stub on invalid values.
+func parseBankProvider(s string) types.BankProvider {
+	p, err := types.ParseBankProvider(s)
+	if err != nil {
+		return types.BankProviderStub
+	}
+	return p
 }

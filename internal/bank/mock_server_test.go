@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"senpay/internal/types"
 )
 
 func TestMockBank_Health(t *testing.T) {
@@ -460,8 +462,8 @@ func TestMockBank_WebhookTrigger(t *testing.T) {
 		if cb.AmountSen != 25000000 {
 			t.Errorf("webhook amount: got %d, want %d", cb.AmountSen, 25000000)
 		}
-		if cb.Status != "success" {
-			t.Errorf("webhook status: got %q, want %q", cb.Status, "success")
+		if cb.Status != types.CallbackSuccess {
+			t.Errorf("webhook status: got %q, want %q", cb.Status, types.CallbackSuccess)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for webhook callback")
