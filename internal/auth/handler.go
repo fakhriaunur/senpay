@@ -11,6 +11,7 @@ import (
 	"senpay/internal/types"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -259,20 +260,19 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check single-use rotation: reject if this token was already used.
-	if h.tokenStore.IsUsed(claims.ID) {
-		writeJSONError(w, types.ErrUnauthorized)
-		return
-	}
-
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
 		writeJSONError(w, types.ErrUnauthorized)
 		return
 	}
 
-	// Mark old refresh token as used (single-use rotation).
-	h.tokenStore.MarkUsed(claims.ID)
+	// Atomic single-use rotation: MarkUsed atomically checks whether the token
+	// was already used and marks it as used in one operation, eliminating the
+	// TOCTOU race window between a separate IsUsed()+MarkUsed() pair.
+	if h.tokenStore.MarkUsed(claims.ID) {
+		writeJSONError(w, types.ErrUnauthorized)
+		return
+	}
 
 	// Issue new tokens.
 	newToken, err := GenerateAccessToken(userID, h.jwtSecret)
@@ -413,8 +413,12 @@ func (h *Handler) getBalance(ctx context.Context, userID uuid.UUID) (balanceResp
 	var resp balanceResponse
 	err := h.pool.QueryRow(ctx, query, userID).Scan(&resp.BalanceSen, &resp.Version)
 	if err != nil {
-		// If no row exists, return zero balance.
-		resp = balanceResponse{BalanceSen: 0, Version: 1}
+		if errors.Is(err, pgx.ErrNoRows) {
+			// If no row exists, return zero balance (e.g. before any seed).
+			return balanceResponse{BalanceSen: 0, Version: 1}, nil
+		}
+		// Real DB error — propagate so caller returns ErrInternal.
+		return balanceResponse{}, err
 	}
 	return resp, nil
 }
