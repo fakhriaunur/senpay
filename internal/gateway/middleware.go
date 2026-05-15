@@ -24,24 +24,14 @@ const (
 	// CtxKeyRequestID is the context key for the request ID.
 	CtxKeyRequestID contextKey = "request_id"
 
-	// ErrCodeBILimitExceeded is the error code for BI limit enforcement.
-	ErrCodeBILimitExceeded = "LIMIT_EXCEEDED"
-
 	// BILimitBasicSen is the per-transaction limit for basic KYC users in sen.
-	// Rp 2.000.000 = 200,000 sen.
-	BILimitBasicSen types.Money = 200_000
+	// Rp 2.000.000 = 200,000,000 sen.
+	BILimitBasicSen types.Money = 200_000_000
 
 	// BILimitVerifiedSen is the per-transaction limit for verified KYC users in sen.
-	// Rp 10.000.000 = 1,000,000 sen.
-	BILimitVerifiedSen types.Money = 1_000_000
+	// Rp 10.000.000 = 1,000,000,000 sen.
+	BILimitVerifiedSen types.Money = 1_000_000_000
 )
-
-// ErrBILimitExceeded is the DomainError returned when a transaction exceeds BI limits.
-var ErrBILimitExceeded = types.DomainError{
-	Code:       ErrCodeBILimitExceeded,
-	Message:    "Batas transaksi harian terlampaui",
-	HTTPStatus: http.StatusUnprocessableEntity,
-}
 
 // GetRequestID extracts the request ID from context.
 func GetRequestID(ctx context.Context) string {
@@ -190,8 +180,8 @@ type UserStore interface {
 // the user's KYC level. Requires auth middleware to have injected the user ID
 // into the request context.
 //
-// Basic KYC: max Rp 2.000.000 (200,000 sen) per transaction.
-// Verified KYC: max Rp 10.000.000 (1,000,000 sen) per transaction.
+// Basic KYC: max Rp 2.000.000 (200,000,000 sen) per transaction.
+// Verified KYC: max Rp 10.000.000 (1,000,000,000 sen) per transaction.
 //
 // Only applies to POST and PUT requests containing an amount_sen field.
 func BILimit(store UserStore) func(http.Handler) http.Handler {
@@ -250,7 +240,7 @@ func BILimit(store UserStore) func(http.Handler) http.Handler {
 
 			// Enforce limit.
 			if amountSen > limit {
-				writeJSONError(w, ErrBILimitExceeded)
+				writeJSONError(w, types.ErrExceedsTransactionLimit)
 				return
 			}
 

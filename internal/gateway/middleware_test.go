@@ -338,7 +338,7 @@ func TestBILimitMiddleware(t *testing.T) {
 		biMiddleware := BILimit(store)
 		wrapped := biMiddleware(okHandler())
 
-		body := `{"amount_sen":250000}` // Rp 2.500.000 > Rp 2.000.000 limit
+		body := `{"amount_sen":250000000}` // Rp 2.500.000.000 > Rp 2.000.000.000 limit (200M sen)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -346,20 +346,20 @@ func TestBILimitMiddleware(t *testing.T) {
 
 		wrapped.ServeHTTP(w, r)
 
-		if w.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("expected 422, got %d", w.Code)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
 		}
 
 		code, resp := readResponse(t, w)
-		if code != http.StatusUnprocessableEntity {
-			t.Fatalf("expected 422, got %d", code)
+		if code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", code)
 		}
 		errData, ok := resp["error"].(map[string]interface{})
 		if !ok {
 			t.Fatal("expected error in response")
 		}
-		if errData["code"] != ErrCodeBILimitExceeded {
-			t.Errorf("expected %s, got %v", ErrCodeBILimitExceeded, errData["code"])
+		if errData["code"] != types.ErrCodeExceedsTransactionLimit {
+			t.Errorf("expected %s, got %v", types.ErrCodeExceedsTransactionLimit, errData["code"])
 		}
 		msg, _ := errData["message"].(string)
 		if !strings.Contains(msg, "transaksi") {
@@ -371,7 +371,7 @@ func TestBILimitMiddleware(t *testing.T) {
 		biMiddleware := BILimit(store)
 		wrapped := biMiddleware(okHandler())
 
-		body := `{"amount_sen":150000}` // Rp 1.500.000 < Rp 2.000.000 limit
+		body := `{"amount_sen":150000000}` // Rp 1.500.000.000 < Rp 2.000.000.000 limit (200M sen)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -388,7 +388,7 @@ func TestBILimitMiddleware(t *testing.T) {
 		biMiddleware := BILimit(store)
 		wrapped := biMiddleware(okHandler())
 
-		body := `{"amount_sen":500000}` // Rp 5.000.000 > Rp 2M but < Rp 10M
+		body := `{"amount_sen":500000000}` // Rp 5.000.000.000 > Rp 2M but < Rp 10M (1B sen)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -405,7 +405,7 @@ func TestBILimitMiddleware(t *testing.T) {
 		biMiddleware := BILimit(store)
 		wrapped := biMiddleware(okHandler())
 
-		body := `{"amount_sen":1100000}` // Rp 11.000.000 > Rp 10.000.000 limit
+		body := `{"amount_sen":1100000000}` // Rp 11.000.000.000 > Rp 10.000.000.000 limit (1B sen)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -413,8 +413,8 @@ func TestBILimitMiddleware(t *testing.T) {
 
 		wrapped.ServeHTTP(w, r)
 
-		if w.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("expected 422 for verified above limit, got %d", w.Code)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for verified above limit, got %d", w.Code)
 		}
 	})
 
@@ -452,8 +452,8 @@ func TestBILimitMiddleware(t *testing.T) {
 		biMiddleware := BILimit(store)
 		wrapped := biMiddleware(okHandler())
 
-		// Exactly at the basic limit (200,000 sen).
-		body := `{"amount_sen":200000}`
+		// Exactly at the basic limit (200,000,000 sen).
+		body := `{"amount_sen":200000000}`
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -585,15 +585,15 @@ func TestMiddlewareChain(t *testing.T) {
 		chain := Recovery(RequestID(Logging(RateLimit(rl)(BILimit(store)(okHandler())))))
 
 		w := httptest.NewRecorder()
-		body := `{"amount_sen":250000}`
+		body := `{"amount_sen":250000000}`
 		r := httptest.NewRequest("POST", "/v1/transfer", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 		r = setUserContext(r, userID)
 
 		chain.ServeHTTP(w, r)
 
-		if w.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("expected 422 for basic user above limit, got %d", w.Code)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for basic user above limit, got %d", w.Code)
 		}
 	})
 }
