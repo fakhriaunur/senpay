@@ -473,7 +473,7 @@ func TestStubAdapter_Credit(t *testing.T) {
 
 	stub := NewStubAdapter()
 
-	result, err := stub.Credit(nil, CreditRequest{
+	result, err := stub.Credit(context.TODO(), CreditRequest{
 		VANumber:   "8999123456",
 		AmountSen:  10000000,
 		ExternalID: "stub-test-001",
@@ -495,7 +495,7 @@ func TestStubAdapter_AlwaysFail(t *testing.T) {
 	stub := NewStubAdapter()
 	stub.SetAlwaysFail(true)
 
-	_, err := stub.Credit(nil, CreditRequest{
+	_, err := stub.Credit(context.TODO(), CreditRequest{
 		VANumber:  "8999123456",
 		AmountSen: 10000000,
 	})
@@ -506,7 +506,7 @@ func TestStubAdapter_AlwaysFail(t *testing.T) {
 		t.Errorf("code: got %q, want %q", err.Code, ErrBankRejection.Code)
 	}
 
-	_, err = stub.Withdraw(nil, WithdrawRequest{
+	_, err = stub.Withdraw(context.TODO(), WithdrawRequest{
 		BankAccount: "1234567890",
 		AmountSen:   5000000,
 	})
@@ -523,7 +523,7 @@ func TestStubAdapter_Withdraw(t *testing.T) {
 
 	stub := NewStubAdapter()
 
-	result, err := stub.Withdraw(nil, WithdrawRequest{
+	result, err := stub.Withdraw(context.TODO(), WithdrawRequest{
 		BankAccount: "1234567890",
 		AmountSen:   5000000,
 		ExternalID:  "stub-wd-001",

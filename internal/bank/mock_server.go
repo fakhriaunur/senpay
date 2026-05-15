@@ -201,7 +201,7 @@ type snapError struct {
 func writeSNAPError(w http.ResponseWriter, statusCode int, err snapError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": err,
 	})
 }
@@ -228,7 +228,7 @@ func (m *MockBank) simulateDelay() {
 func (m *MockBank) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // handleCredit serves POST /bank/api/v1/credit.
@@ -264,7 +264,7 @@ func (m *MockBank) handleCredit(w http.ResponseWriter, r *http.Request) {
 	// Return success.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(CreditResult{
+	_ = json.NewEncoder(w).Encode(CreditResult{
 		Success:      true,
 		ReferenceID:  fmt.Sprintf("BANK-REF-%s", r.Header.Get("X-EXTERNAL-ID")),
 		BankResponse: "mock: credit approved",
@@ -309,7 +309,7 @@ func (m *MockBank) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 	// Return success.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(CreditResult{
+	_ = json.NewEncoder(w).Encode(CreditResult{
 		Success:      true,
 		ReferenceID:  fmt.Sprintf("BANK-WD-%s", r.Header.Get("X-EXTERNAL-ID")),
 		BankResponse: "mock: withdraw approved",
@@ -349,7 +349,7 @@ func (m *MockBank) handleReversal(w http.ResponseWriter, r *http.Request) {
 	// Return success.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(ReversalResult{
+	_ = json.NewEncoder(w).Encode(ReversalResult{
 		Success:     true,
 		ReferenceID: fmt.Sprintf("BANK-REV-%s", r.Header.Get("X-EXTERNAL-ID")),
 	})
