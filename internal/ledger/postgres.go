@@ -32,14 +32,18 @@ func (s *PostgresTxLogStore) Append(ctx context.Context, tx types.Transaction) e
 	const query = `
 		INSERT INTO tx_log (
 			id, idempotency_key, tx_type, sender_id, receiver_id,
-			amount_sen, currency, status, failure_reason, created_at, committed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			amount_sen, currency, status, failure_reason, category, created_at, committed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
+	cat := tx.Category
+	if cat == "" {
+		cat = types.CategoryDefault
+	}
 	_, err := s.pool.Exec(ctx, query,
 		tx.ID, tx.IdempotencyKey, tx.TxType,
 		tx.SenderID, tx.ReceiverID,
 		tx.AmountSen, tx.Currency, tx.Status,
-		tx.FailureReason, tx.CreatedAt, tx.CommittedAt,
+		tx.FailureReason, cat, tx.CreatedAt, tx.CommittedAt,
 	)
 	if err != nil {
 		// Check for unique constraint violation on idempotency_key.

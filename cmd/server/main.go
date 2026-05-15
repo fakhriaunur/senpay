@@ -17,6 +17,7 @@ import (
 	"senpay/internal/idempotency"
 	"senpay/internal/ledger"
 	"senpay/internal/nats"
+	"senpay/internal/senpai"
 	"senpay/internal/store/migrations"
 	"senpay/internal/telemetry"
 	"senpay/internal/transfer"
@@ -178,6 +179,16 @@ func main() {
 
 	// Bank webhook callback endpoint (no auth — called by mock bank internally).
 	mux.HandleFunc("POST /bank/webhook", bankWebhook.HandleWebhook)
+
+	// ── Senpai Analytics & Budgets ──────────────────────────────
+	senpaiHandler := senpai.NewHandler(pool, cfg.SenpaiFullEnabled)
+
+	// Senpai endpoints (all protected by auth middleware).
+	mux.Handle("GET /v1/senpai/summary", authMiddleware(http.HandlerFunc(senpaiHandler.Summary)))
+	mux.Handle("GET /v1/senpai/trend", authMiddleware(http.HandlerFunc(senpaiHandler.Trend)))
+	mux.Handle("POST /v1/senpai/budgets", authMiddleware(http.HandlerFunc(senpaiHandler.CreateBudget)))
+	mux.Handle("GET /v1/senpai/budgets", authMiddleware(http.HandlerFunc(senpaiHandler.ListBudgets)))
+	mux.Handle("GET /v1/senpai/nudge", authMiddleware(http.HandlerFunc(senpaiHandler.Nudge)))
 
 	// Apply global gateway middleware stack (outermost to innermost).
 	handler := gateway.Recovery(mux)

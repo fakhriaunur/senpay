@@ -31,6 +31,7 @@ type TransferRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 	ToPhone        string `json:"to_phone"`
 	AmountSen      int64  `json:"amount_sen"`
+	Category       string `json:"category,omitempty"`
 }
 
 // TransferResult represents a successful transfer response.
@@ -292,6 +293,7 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 		AmountSen:      int64(amount),
 		Currency:       types.CurrencyIDR,
 		Status:         types.TxStatusCommitted,
+		Category:       req.Category,
 		CreatedAt:      now,
 		CommittedAt:    &now,
 	}
@@ -400,14 +402,18 @@ func (s *Service) appendTxInTx(ctx context.Context, tx pgx.Tx, entry types.Trans
 	const query = `
 		INSERT INTO tx_log (
 			id, idempotency_key, tx_type, sender_id, receiver_id,
-			amount_sen, currency, status, failure_reason, created_at, committed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			amount_sen, currency, status, failure_reason, category, created_at, committed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
+	cat := entry.Category
+	if cat == "" {
+		cat = types.CategoryDefault
+	}
 	_, err := tx.Exec(ctx, query,
 		entry.ID, entry.IdempotencyKey, entry.TxType,
 		entry.SenderID, entry.ReceiverID,
 		entry.AmountSen, entry.Currency, entry.Status,
-		entry.FailureReason, entry.CreatedAt, entry.CommittedAt,
+		entry.FailureReason, cat, entry.CreatedAt, entry.CommittedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert tx_log: %w", err)

@@ -17,9 +17,13 @@ type Transaction struct {
 	Currency       string     `json:"currency"`
 	Status         string     `json:"status"`
 	FailureReason  *string    `json:"failure_reason,omitempty"`
+	Category       string     `json:"category,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	CommittedAt    *time.Time `json:"committed_at,omitempty"`
 }
+
+// Default category for transactions without an explicit category.
+const CategoryDefault = "Lainnya"
 
 // Transaction types.
 const (
