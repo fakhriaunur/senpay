@@ -277,6 +277,160 @@ func GetTransactions(token, cursor string, limit int) (*TransactionListResponse,
 	return &listResp, nil
 }
 
+// --- Top-up API ---
+
+// topupRequest is the JSON body for POST /v1/topup.
+type topupRequest struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	AmountSen      int64  `json:"amount_sen"`
+}
+
+// TopupResponse is the JSON response from POST /v1/topup.
+type TopupResponse struct {
+	TxID      string `json:"tx_id"`
+	VANumber  string `json:"va_number"`
+	AmountSen int64  `json:"amount_sen"`
+	Status    string `json:"status"`
+	ExpiresAt string `json:"expires_at"`
+	CreatedAt string `json:"created_at"`
+}
+
+// PostTopup calls POST /v1/topup with the given parameters.
+func PostTopup(token, idempotencyKey string, amountSen int64) (*TopupResponse, error) {
+	if idempotencyKey == "" {
+		return nil, fmt.Errorf("idempotency_key is required")
+	}
+	if amountSen <= 0 {
+		return nil, fmt.Errorf("amount must be positive")
+	}
+
+	body := topupRequest{
+		IdempotencyKey: idempotencyKey,
+		AmountSen:      amountSen,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", BaseURL+"/v1/topup", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("network error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var errResp errorResponse
+		if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Error.Message != "" {
+			return nil, &apiError{Code: errResp.Error.Code, Message: errResp.Error.Message}
+		}
+		return nil, &apiError{
+			Code:    "UNKNOWN",
+			Message: fmt.Sprintf("Top-up gagal (status %d)", resp.StatusCode),
+		}
+	}
+
+	var apiResp struct {
+		Data TopupResponse `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	return &apiResp.Data, nil
+}
+
+// --- Withdraw API ---
+
+// withdrawRequest is the JSON body for POST /v1/withdraw.
+type withdrawRequest struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	AmountSen      int64  `json:"amount_sen"`
+	BankAccount    string `json:"bank_account"`
+}
+
+// WithdrawResponse is the JSON response from POST /v1/withdraw.
+type WithdrawResponse struct {
+	TxID        string `json:"tx_id"`
+	AmountSen   int64  `json:"amount_sen"`
+	BankAccount string `json:"bank_account"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// PostWithdraw calls POST /v1/withdraw with the given parameters.
+func PostWithdraw(token, idempotencyKey string, amountSen int64, bankAccount string) (*WithdrawResponse, error) {
+	if idempotencyKey == "" {
+		return nil, fmt.Errorf("idempotency_key is required")
+	}
+	if amountSen <= 0 {
+		return nil, fmt.Errorf("amount must be positive")
+	}
+	if bankAccount == "" {
+		return nil, fmt.Errorf("bank_account is required")
+	}
+
+	body := withdrawRequest{
+		IdempotencyKey: idempotencyKey,
+		AmountSen:      amountSen,
+		BankAccount:    bankAccount,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", BaseURL+"/v1/withdraw", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("network error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var errResp errorResponse
+		if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Error.Message != "" {
+			return nil, &apiError{Code: errResp.Error.Code, Message: errResp.Error.Message}
+		}
+		return nil, &apiError{
+			Code:    "UNKNOWN",
+			Message: fmt.Sprintf("Withdraw gagal (status %d)", resp.StatusCode),
+		}
+	}
+
+	var apiResp struct {
+		Data WithdrawResponse `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	return &apiResp.Data, nil
+}
+
 // GetTransactionDetail calls GET /v1/transactions/{id}.
 func GetTransactionDetail(token, txID string) (*TransactionItem, error) {
 	req, err := http.NewRequest("GET", BaseURL+"/v1/transactions/"+txID, nil)

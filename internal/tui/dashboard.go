@@ -203,25 +203,26 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 			// For now, do nothing special on dashboard.
 			return d, nil
 
-		case "1":
-			d.activeTab = NavDashboard
-			return d, nil
-		case "2":
+		case "1", "t":
 			// Navigate to Transfer.
 			return d, func() tea.Msg {
 				return quickActionSelectedMsg{actionID: ActionTransfer}
 			}
-		case "3":
+		case "2", "u":
+			// Navigate to Top Up.
+			return d, func() tea.Msg {
+				return quickActionSelectedMsg{actionID: ActionTopUp}
+			}
+		case "3", "h":
 			// Navigate to History.
 			return d, func() tea.Msg {
 				return quickActionSelectedMsg{actionID: ActionHistory}
 			}
-		case "4":
-			d.activeTab = NavTopUp
-			return d, nil
-		case "5":
-			d.activeTab = NavWithdraw
-			return d, nil
+		case "4", "w":
+			// Navigate to Withdraw.
+			return d, func() tea.Msg {
+				return quickActionSelectedMsg{actionID: ActionWithdraw}
+			}
 		}
 
 	case balanceTickMsg:
@@ -293,7 +294,7 @@ func (d *dashboardScreen) View() string {
 	b.WriteString("\n")
 
 	// Help text.
-	b.WriteString(HelpStyle.Render("Tab: navigasi • Enter: pilih • 2: Transfer • 3: History • Ctrl+C: keluar"))
+	b.WriteString(HelpStyle.Render("Tab: navigasi • Enter: pilih • 1:T 2:U 3:H 4:W • ?: bantuan • Ctrl+C: keluar"))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
@@ -305,12 +306,8 @@ func (d *dashboardScreen) renderNav() string {
 		var style lipgloss.Style
 		if tab.id == d.activeTab {
 			style = NavTabActiveStyle
-		} else if tab.id == NavLogin || tab.id == NavDashboard || tab.id == NavTransfer || tab.id == NavHistory {
-			// Login (Profile), Dashboard, Transfer, History are available.
-			style = NavTabStyle.Foreground(lipgloss.Color(colorSecondary))
 		} else {
-			// Top Up and Withdraw are disabled (not yet implemented).
-			style = NavTabDisabledStyle
+			style = NavTabStyle.Foreground(lipgloss.Color(colorSecondary))
 		}
 		tabs = append(tabs, style.Render(tab.label))
 	}

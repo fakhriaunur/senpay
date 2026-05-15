@@ -7,6 +7,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -22,18 +23,29 @@ const (
 	screenTransferSuccess
 	screenHistory
 	screenDetail
+	screenTopup
+	screenWithdraw
+)
+
+// minimum terminal dimensions.
+const (
+	minWidth  = 80
+	minHeight = 24
 )
 
 // Model is the top-level Bubble Tea model that manages screens.
 type Model struct {
-	session     *Session
-	current     screenID
-	login       *loginScreen
-	dashboard   *dashboardScreen
-	transfer    *transferScreen
-	history     *historyScreen
-	detail      *detailScreen
-	quitting    bool
+	session      *Session
+	current      screenID
+	login        *loginScreen
+	dashboard    *dashboardScreen
+	transfer     *transferScreen
+	history      *historyScreen
+	detail       *detailScreen
+	topup        *topupScreen
+	withdraw     *withdrawScreen
+	quitting     bool
+	showingHelp  bool
 	windowWidth  int
 	windowHeight int
 }
@@ -68,6 +80,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle global keys.
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// ? key toggles help overlay (if not in quit confirmation).
+		if msg.String() == "?" && !m.quitting {
+			m.showingHelp = !m.showingHelp
+			return m, nil
+		}
+
+		// If help overlay is showing, Esc dismisses it.
+		if m.showingHelp {
+			if msg.String() == "esc" || msg.String() == "?" {
+				m.showingHelp = false
+				return m, nil
+			}
+			// Other keys don't dismiss help in some designs, but
+			// it's friendlier to dismiss on any key.
+			m.showingHelp = false
+			return m, nil
+		}
+
 		// Ctrl+C handling with confirmation.
 		if msg.String() == "ctrl+c" {
 			if m.quitting {
@@ -115,6 +145,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateHistory(msg)
 	case screenDetail:
 		return m.updateDetail(msg)
+	case screenTopup:
+		return m.updateTopup(msg)
+	case screenWithdraw:
+		return m.updateWithdraw(msg)
 	}
 
 	return m, nil
@@ -147,6 +181,14 @@ func (m *Model) updateDashboard(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = screenTransfer
 			m.transfer = newTransferScreen(m.session)
 			return m, m.transfer.Init()
+		case ActionTopUp:
+			m.current = screenTopup
+			m.topup = newTopupScreen(m.session)
+			return m, m.topup.Init()
+		case ActionWithdraw:
+			m.current = screenWithdraw
+			m.withdraw = newWithdrawScreen(m.session)
+			return m, m.withdraw.Init()
 		case ActionHistory:
 			m.current = screenHistory
 			m.history = newHistoryScreen(m.session)
@@ -178,6 +220,20 @@ func (m *Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// updateTopup handles messages for the top-up screen.
+func (m *Model) updateTopup(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.topup, cmd = m.topup.Update(msg)
+	return m, cmd
+}
+
+// updateWithdraw handles messages for the withdraw screen.
+func (m *Model) updateWithdraw(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.withdraw, cmd = m.withdraw.Update(msg)
+	return m, cmd
+}
+
 // transitionToDashboard switches from login to dashboard screen.
 func (m *Model) transitionToDashboard() {
 	m.current = screenDashboard
@@ -186,6 +242,18 @@ func (m *Model) transitionToDashboard() {
 
 // View renders the current screen.
 func (m *Model) View() string {
+	// Enforce minimum size.
+	if m.windowWidth > 0 && m.windowHeight > 0 {
+		if m.windowWidth < minWidth || m.windowHeight < minHeight {
+			return m.renderMinSizeWarning()
+		}
+	}
+
+	// If help overlay is showing, render it on top of current screen.
+	if m.showingHelp {
+		return m.renderHelpOverlay()
+	}
+
 	// If in quit confirmation, overlay confirmation dialog.
 	if m.quitting {
 		return m.renderQuitConfirmation()
@@ -202,8 +270,38 @@ func (m *Model) View() string {
 		return m.history.View()
 	case screenDetail:
 		return m.detail.View()
+	case screenTopup:
+		return m.topup.View()
+	case screenWithdraw:
+		return m.withdraw.View()
 	}
 	return ""
+}
+
+// renderMinSizeWarning renders a minimum size warning overlay.
+func (m *Model) renderMinSizeWarning() string {
+	warningStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(lipgloss.Color(colorError)).
+		Padding(1, 3).
+		Width(50).
+		Align(lipgloss.Center)
+
+	warningContent := lipgloss.JoinVertical(lipgloss.Center,
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorError)).Render("Ukuran Terminal Terlalu Kecil"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render("Minimal ukuran: 80x24"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(
+			fmt.Sprintf("Ukuran saat ini: %dx%d", m.windowWidth, m.windowHeight),
+		),
+	)
+
+	return lipgloss.NewStyle().
+		Width(m.windowWidth).
+		Height(m.windowHeight).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(warningStyle.Render(warningContent))
 }
 
 // renderQuitConfirmation renders a quit confirmation dialog.
@@ -228,6 +326,71 @@ func (m *Model) renderQuitConfirmation() string {
 		Height(24).
 		Align(lipgloss.Center, lipgloss.Center).
 		Render(dialogStyle.Render(dialogContent))
+}
+
+// renderHelpOverlay renders the help keyboard shortcuts overlay.
+func (m *Model) renderHelpOverlay() string {
+	helpStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(lipgloss.Color(colorPrimary)).
+		Padding(1, 3).
+		Width(56).
+		Align(lipgloss.Left)
+
+	helpContent := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary)).Width(50).Align(lipgloss.Center).Render("⌨ Bantuan Keyboard"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Navigasi Global")),
+		helpItem("Esc", "Kembali ke layar sebelumnya"),
+		helpItem("Tab ↑↓", "Pindah field input"),
+		helpItem("Enter", "Konfirmasi/pilih"),
+		helpItem("Ctrl+C", "Keluar dari aplikasi"),
+		helpItem("?", "Tampilkan bantuan ini"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Pintasan Dashboard")),
+		helpItem("1 / T", "Transfer"),
+		helpItem("2 / U", "Top Up"),
+		helpItem("3 / H", "Riwayat"),
+		helpItem("4 / W", "Tarik Tunai"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Pintasan Top Up")),
+		helpItem("← →", "Pilih metode pembayaran"),
+		helpItem("C", "Salin nomor VA"),
+		"",
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Width(50).Align(lipgloss.Center).Render("Tekan ? atau Esc untuk menutup"),
+	)
+
+	return lipgloss.NewStyle().
+		Width(80).
+		Height(24).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(helpStyle.Render(helpContent))
+}
+
+// helpItem returns a styled help item line.
+func helpItem(key, desc string) string {
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colorSenpai)).
+		Bold(true).
+		Width(14).
+		Align(lipgloss.Left)
+	descStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colorWhite))
+	return keyStyle.Render(key) + descStyle.Render(desc)
+}
+
+// dashLine returns a dashed separator line.
+func dashLine(label string) string {
+	if label == "" {
+		return strings.Repeat("─", 40)
+	}
+	padding := 40 - len(label) - 2
+	if padding < 2 {
+		padding = 2
+	}
+	left := padding / 2
+	right := padding - left
+	return strings.Repeat("─", left) + " " + label + " " + strings.Repeat("─", right)
 }
 
 // Run starts the TUI application.
