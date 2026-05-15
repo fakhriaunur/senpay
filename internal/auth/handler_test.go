@@ -602,7 +602,7 @@ func TestMeHandler(t *testing.T) {
 			t.Errorf("expected phone 084444444444, got %q", phone)
 		}
 		kyc, ok := resp["kyc_level"].(string)
-		if !ok || kyc != types.KYCLevelBasic {
+		if !ok || kyc != string(types.KYCLevelBasic) {
 			t.Errorf("expected kyc_level basic, got %q", kyc)
 		}
 	})

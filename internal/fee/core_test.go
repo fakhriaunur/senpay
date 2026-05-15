@@ -17,7 +17,7 @@ func TestCalcFee(t *testing.T) {
 	tests := []struct {
 		name     string
 		amount   types.Money
-		kycLevel string
+		kycLevel types.KYCLevel
 		want     types.Money
 		wantErr  bool
 		wantCode string
@@ -99,10 +99,10 @@ func TestCalcFee(t *testing.T) {
 			wantErr: true, wantCode: types.ErrCodeInvalidAmount},
 
 		// ── Unknown KYC level (treated as basic) ────────────────
-		{name: "unknown_kyc_small", amount: 100, kycLevel: "unknown", want: 2500},
-		{name: "unknown_kyc_empty", amount: 50000, kycLevel: "", want: 2500},
-		{name: "unknown_kyc_platinum", amount: 1000000, kycLevel: "platinum", want: 2500},
-		{name: "unknown_kyc_premium", amount: maxI64, kycLevel: "premium", want: 2500},
+		{name: "unknown_kyc_small", amount: 100, kycLevel: types.KYCLevel("unknown"), want: 2500},
+		{name: "unknown_kyc_empty", amount: 50000, kycLevel: types.KYCLevel(""), want: 2500},
+		{name: "unknown_kyc_platinum", amount: 1000000, kycLevel: types.KYCLevel("platinum"), want: 2500},
+		{name: "unknown_kyc_premium", amount: maxI64, kycLevel: types.KYCLevel("premium"), want: 2500},
 
 		// ── Cross-tier boundary checks ──────────────────────────
 		{name: "basic_vs_verified_same_amount", amount: 100000, kycLevel: types.KYCLevelBasic, want: 2500},
@@ -273,8 +273,8 @@ func TestCalcFees(t *testing.T) {
 		{
 			name: "unknown_kyc_treated_as_basic",
 			inputs: []TransferInput{
-				{Amount: 50000, KYCLevel: "unknown"},
-				{Amount: 75000, KYCLevel: ""},
+				{Amount: 50000, KYCLevel: types.KYCLevel("unknown")},
+				{Amount: 75000, KYCLevel: types.KYCLevel("")},
 			},
 			want: 5000, // 2 * 2500
 		},
@@ -334,12 +334,13 @@ func TestProperty_CalcFee_NonNegative(t *testing.T) {
 
 	rapid.Check(t, func(t *rapid.T) {
 		amount := rapid.Int64Range(1, math.MaxInt64).Draw(t, "amount")
-		kycLevel := rapid.SampledFrom([]string{
-			types.KYCLevelBasic,
-			types.KYCLevelVerified,
+		kycLevelStr := rapid.SampledFrom([]string{
+			string(types.KYCLevelBasic),
+			string(types.KYCLevelVerified),
 			"unknown",
 			"",
 		}).Draw(t, "kycLevel")
+		kycLevel := types.KYCLevel(kycLevelStr)
 
 		fee, err := CalcFee(types.Money(amount), kycLevel)
 		if err != nil {
@@ -430,10 +431,11 @@ func TestProperty_CalcFees_SumMatches(t *testing.T) {
 
 		for i := 0; i < n; i++ {
 			amount := rapid.Int64Range(1, 10000000).Draw(t, "amount")
-			kyc := rapid.SampledFrom([]string{
-				types.KYCLevelBasic,
-				types.KYCLevelVerified,
+			kycStr := rapid.SampledFrom([]string{
+				string(types.KYCLevelBasic),
+				string(types.KYCLevelVerified),
 			}).Draw(t, "kycLevel")
+			kyc := types.KYCLevel(kycStr)
 
 			inputs[i] = TransferInput{
 				Amount:   types.Money(amount),

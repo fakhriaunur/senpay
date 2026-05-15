@@ -112,6 +112,46 @@ func TestParseBankProvider(t *testing.T) {
 	}
 }
 
+func TestParseKYCLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    KYCLevel
+		wantErr bool
+	}{
+		{name: "basic", input: "basic", want: KYCLevelBasic, wantErr: false},
+		{name: "verified", input: "verified", want: KYCLevelVerified, wantErr: false},
+		{name: "empty", input: "", wantErr: true},
+		{name: "unknown", input: "unknown", wantErr: true},
+		{name: "typo", input: "verifed", wantErr: true},
+		{name: "case_sensitive", input: "BASIC", wantErr: true},
+		{name: "premium", input: "premium", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseKYCLevel(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParseKYCLevel(%q) expected error, got %v", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ParseKYCLevel(%q) unexpected error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseKYCLevel(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			if got.String() != tt.input {
+				t.Errorf("KYCLevel.String() = %q, want %q", got.String(), tt.input)
+			}
+		})
+	}
+}
+
 func TestParseEntryType(t *testing.T) {
 	t.Parallel()
 

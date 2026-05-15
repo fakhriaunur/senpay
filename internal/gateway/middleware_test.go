@@ -32,7 +32,7 @@ func newMockStore() *mockUserStore {
 	return &mockUserStore{users: make(map[uuid.UUID]types.User)}
 }
 
-func (m *mockUserStore) addUser(id uuid.UUID, kycLevel string) {
+func (m *mockUserStore) addUser(id uuid.UUID, kycLevel types.KYCLevel) {
 	m.users[id] = types.User{
 		ID:       id,
 		Phone:    "081234567890",

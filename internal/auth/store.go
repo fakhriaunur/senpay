@@ -24,5 +24,5 @@ type UserRepository interface {
 
 	// UpdateKYCLevel updates the KYC level for a user.
 	// Returns ErrUserNotFound if no user exists with the given ID.
-	UpdateKYCLevel(ctx context.Context, id uuid.UUID, level string) error
+	UpdateKYCLevel(ctx context.Context, id uuid.UUID, level types.KYCLevel) error
 }

@@ -1136,7 +1136,7 @@ func (s *Service) publishTopupEvent(ctx context.Context, vaRecord *VATopupRecord
 // ── BI Limit Check ─────────────────────────────────────────────
 
 // checkBILimit checks if a transaction amount exceeds the BI limit for the user's KYC level.
-func checkBILimit(amount types.Money, kycLevel string) *types.DomainError {
+func checkBILimit(amount types.Money, kycLevel types.KYCLevel) *types.DomainError {
 	var limit types.Money
 	switch kycLevel {
 	case types.KYCLevelVerified:

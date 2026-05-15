@@ -128,3 +128,34 @@ func ParseEntryType(s string) (EntryType, error) {
 func (t EntryType) String() string {
 	return string(t)
 }
+
+// ────────────────────────────────────────────────────────────────
+// KYCLevel — Know Your Customer verification level
+// ────────────────────────────────────────────────────────────────
+
+// KYCLevel represents the KYC verification level of a user.
+// Valid values: basic, verified.
+type KYCLevel string
+
+const (
+	KYCLevelBasic    KYCLevel = "basic"
+	KYCLevelVerified KYCLevel = "verified"
+)
+
+// ParseKYCLevel parses a string into a KYCLevel.
+// Returns DomainError with code ErrCodeInvalidFormat for unknown values.
+func ParseKYCLevel(s string) (KYCLevel, error) {
+	switch s {
+	case string(KYCLevelBasic):
+		return KYCLevelBasic, nil
+	case string(KYCLevelVerified):
+		return KYCLevelVerified, nil
+	default:
+		return "", NewInvalidFormatError("KYC level", fmt.Sprintf("unknown level: %q", s))
+	}
+}
+
+// String returns the string representation of KYCLevel.
+func (k KYCLevel) String() string {
+	return string(k)
+}

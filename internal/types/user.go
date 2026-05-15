@@ -11,15 +11,9 @@ type User struct {
 	ID        uuid.UUID `json:"id"`
 	Phone     string    `json:"phone"`
 	PINHash   string    `json:"-"` // never serialized
-	KYCLevel  string    `json:"kyc_level"`
+	KYCLevel  KYCLevel  `json:"kyc_level"`
 	CreatedAt time.Time `json:"created_at"`
 }
-
-// KYC levels.
-const (
-	KYCLevelBasic    = "basic"
-	KYCLevelVerified = "verified"
-)
 
 // NewUser creates a new User with a UUID v7 ID.
 func NewUser(phone, pinHash string) User {

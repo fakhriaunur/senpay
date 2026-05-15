@@ -58,7 +58,7 @@ func (s *PostgresUserStore) FindByID(ctx context.Context, id uuid.UUID) (types.U
 }
 
 // UpdateKYCLevel updates the KYC level for a user.
-func (s *PostgresUserStore) UpdateKYCLevel(ctx context.Context, id uuid.UUID, level string) error {
+func (s *PostgresUserStore) UpdateKYCLevel(ctx context.Context, id uuid.UUID, level types.KYCLevel) error {
 	const query = `
 		UPDATE users
 		SET kyc_level = $1

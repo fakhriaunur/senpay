@@ -76,13 +76,13 @@ type refreshResponse struct {
 }
 
 type kycResponse struct {
-	KYCLevel string `json:"kyc_level"`
+	KYCLevel types.KYCLevel `json:"kyc_level"`
 }
 
 type userProfileResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Phone    string    `json:"phone"`
-	KYCLevel string    `json:"kyc_level"`
+	ID       uuid.UUID      `json:"id"`
+	Phone    string         `json:"phone"`
+	KYCLevel types.KYCLevel `json:"kyc_level"`
 }
 
 type balanceResponse struct {
@@ -320,8 +320,9 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate KYC level.
-	if req.KYCLevel != types.KYCLevelVerified && req.KYCLevel != types.KYCLevelBasic {
+	// Validate KYC level using ParseKYCLevel.
+	level, err := types.ParseKYCLevel(req.KYCLevel)
+	if err != nil {
 		writeJSONError(w, types.DomainError{
 			Code:       types.ErrCodeInvalidFormat,
 			Message:    "Level KYC tidak valid: harus 'basic' atau 'verified'",
@@ -330,7 +331,7 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.UpdateKYCLevel(r.Context(), userID, req.KYCLevel); err != nil {
+	if err := h.store.UpdateKYCLevel(r.Context(), userID, level); err != nil {
 		if target := (types.DomainError{}); errors.As(err, &target) && target.Code == types.ErrCodeUserNotFound {
 			writeJSONError(w, target)
 			return
@@ -339,7 +340,7 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, kycResponse(req))
+	writeJSONResponse(w, http.StatusOK, kycResponse{KYCLevel: level})
 }
 
 // Me handles GET /v1/auth/me.

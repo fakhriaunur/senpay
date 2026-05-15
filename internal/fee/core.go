@@ -9,7 +9,7 @@ import (
 // TransferInput represents a single transfer for fee calculation.
 type TransferInput struct {
 	Amount   types.Money
-	KYCLevel string
+	KYCLevel types.KYCLevel
 }
 
 const (
@@ -26,7 +26,7 @@ const (
 //
 // Errors:
 //   - ErrInvalidAmount when amount <= 0
-func CalcFee(amount types.Money, userKYC string) (types.Money, *types.DomainError) {
+func CalcFee(amount types.Money, userKYC types.KYCLevel) (types.Money, *types.DomainError) {
 	if !amount.IsPositive() {
 		return 0, &types.ErrInvalidAmount
 	}
