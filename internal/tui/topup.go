@@ -70,7 +70,6 @@ type topupSubmitMsg struct {
 	vaNumber  string
 	amountSen int64
 	expiresAt time.Time
-	newBalance int64
 	createdAt string
 }
 
@@ -212,7 +211,7 @@ func (t *topupScreen) updateForm(msg tea.KeyMsg) (*topupScreen, tea.Cmd) {
 				return t, nil
 			}
 			if amountSen < 10000 { // Minimum Rp 100
-				t.errMsg = "Minimal top-up Rp 1.000"
+				t.errMsg = "Minimal top-up Rp 100"
 				return t, nil
 			}
 

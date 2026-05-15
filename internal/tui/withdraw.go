@@ -182,7 +182,7 @@ func (w *withdrawScreen) updateForm(msg tea.KeyMsg) (*withdrawScreen, tea.Cmd) {
 				return w, nil
 			}
 			if amountSen < 10000 { // Minimum Rp 100
-				w.errMsg = "Minimal penarikan Rp 1.000"
+				w.errMsg = "Minimal penarikan Rp 100"
 				return w, nil
 			}
 			if amountSen > w.session.BalanceSen {
