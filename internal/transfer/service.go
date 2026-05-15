@@ -225,12 +225,11 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 	amount := types.Money(req.AmountSen)
 
 	// Pure core check: can the transfer happen?
-	ev, coreErr := ledger.ExecuteTransfer(
+	if _, coreErr := ledger.ExecuteTransfer(
 		types.Money(senderBalance.BalanceSen),
 		types.Money(receiverBalance.BalanceSen),
 		amount,
-	)
-	if coreErr != nil {
+	); coreErr != nil {
 		return nil, coreErr
 	}
 
@@ -267,38 +266,26 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 
 	now := time.Now().UTC()
 
-	// Insert debit tx_log entry: sender loses money.
-	debitTx := types.Transaction{
+	// Insert single transfer tx_log entry with both sender and receiver IDs.
+	// A single entry represents the transfer from both perspectives:
+	//   - The sender sees this as a debit (sender_id matches → balance decreases)
+	//   - The receiver sees this as a credit (receiver_id matches → balance increases)
+	// This dual-perspective approach avoids double-counting in balance projection
+	// while preserving full counterparty information for both parties.
+	txEntry := types.Transaction{
 		ID:             uuid.Must(uuid.NewV7()),
 		IdempotencyKey: req.IdempotencyKey,
 		TxType:         types.TxTypeTransfer,
 		SenderID:       &senderID,
 		ReceiverID:     &receiver.ID,
-		AmountSen:      int64(ev.Debit.Amount),
+		AmountSen:      int64(amount),
 		Currency:       types.CurrencyIDR,
 		Status:         types.TxStatusCommitted,
 		CreatedAt:      now,
 		CommittedAt:    &now,
 	}
-	if err := s.appendTxInTx(ctx, tx, debitTx); err != nil {
-		return nil, fmt.Errorf("insert debit tx: %w", err)
-	}
-
-	// Insert credit tx_log entry: receiver gains money.
-	creditTx := types.Transaction{
-		ID:             uuid.Must(uuid.NewV7()),
-		IdempotencyKey: req.IdempotencyKey,
-		TxType:         types.TxTypeTransfer,
-		SenderID:       &senderID,
-		ReceiverID:     &receiver.ID,
-		AmountSen:      int64(ev.Credit.Amount),
-		Currency:       types.CurrencyIDR,
-		Status:         types.TxStatusCommitted,
-		CreatedAt:      now,
-		CommittedAt:    &now,
-	}
-	if err := s.appendTxInTx(ctx, tx, creditTx); err != nil {
-		return nil, fmt.Errorf("insert credit tx: %w", err)
+	if err := s.appendTxInTx(ctx, tx, txEntry); err != nil {
+		return nil, fmt.Errorf("insert transfer tx: %w", err)
 	}
 
 	// Insert fee tx_log entry (if fee > 0).
@@ -325,7 +312,7 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 	}
 
 	return &TransferResult{
-		TxID:               debitTx.ID,
+		TxID:               txEntry.ID,
 		Status:             types.TxStatusCommitted,
 		AmountSen:          int64(amount),
 		FeeSen:             int64(feeAmount),

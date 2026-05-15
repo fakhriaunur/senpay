@@ -153,6 +153,28 @@ func decodeCursor(cursor string) (int64, uuid.UUID, error) {
 	return unixNano, id, nil
 }
 
+// FindByID retrieves a single transaction log entry by its ID.
+func (s *PostgresTxLogStore) FindByID(ctx context.Context, id uuid.UUID) (types.Transaction, error) {
+	const query = `
+		SELECT id, idempotency_key, tx_type, sender_id, receiver_id,
+			amount_sen, currency, status, failure_reason, created_at, committed_at
+		FROM tx_log
+		WHERE id = $1
+	`
+	var t types.Transaction
+	err := s.pool.QueryRow(ctx, query, id).Scan(
+		&t.ID, &t.IdempotencyKey, &t.TxType, &t.SenderID, &t.ReceiverID,
+		&t.AmountSen, &t.Currency, &t.Status, &t.FailureReason, &t.CreatedAt, &t.CommittedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return types.Transaction{}, types.ErrUserNotFound
+		}
+		return types.Transaction{}, fmt.Errorf("find tx_log by id: %w", err)
+	}
+	return t, nil
+}
+
 // isUniqueViolation checks if a PostgreSQL error is a unique constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError

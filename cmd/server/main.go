@@ -14,10 +14,13 @@ import (
 	"senpay/internal/config"
 	"senpay/internal/gateway"
 	"senpay/internal/idempotency"
+	"senpay/internal/ledger"
 	"senpay/internal/nats"
 	"senpay/internal/store/migrations"
 	"senpay/internal/telemetry"
 	"senpay/internal/transfer"
+	"senpay/internal/transactions"
+	"senpay/internal/wallet"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -89,6 +92,13 @@ func main() {
 	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore)
 	transferHandler := transfer.NewHandler(transferSvc)
 
+	// Initialize wallet handler (balance projection from tx_log).
+	walletHandler := wallet.NewHandler(pool)
+
+	// Initialize transaction history handler (ledger store + counterparty lookup).
+	txLogStore := ledger.NewPostgresTxLogStore(pool)
+	txHandler := transactions.NewHandler(txLogStore, userStore)
+
 	metrics := telemetry.NewMetrics()
 
 	mux := http.NewServeMux()
@@ -110,6 +120,13 @@ func main() {
 	mux.Handle("POST /v1/auth/kyc", authMiddleware(http.HandlerFunc(authHandler.KYC)))
 	mux.Handle("GET /v1/auth/me", authMiddleware(http.HandlerFunc(authHandler.Me)))
 	mux.Handle("GET /v1/balance", authMiddleware(http.HandlerFunc(authHandler.Balance)))
+
+	// Wallet endpoint (protected, balance projected from tx_log).
+	mux.Handle("GET /v1/wallet/balance", authMiddleware(http.HandlerFunc(walletHandler.Balance)))
+
+	// Transaction history endpoints (protected).
+	mux.Handle("GET /v1/transactions", authMiddleware(http.HandlerFunc(txHandler.List)))
+	mux.Handle("GET /v1/transactions/{id}", authMiddleware(http.HandlerFunc(txHandler.Detail)))
 
 	// Transfer endpoint (protected + BI limit enforced).
 	mux.Handle("POST /v1/transfer", authMiddleware(biLimiter(http.HandlerFunc(transferHandler.Transfer))))

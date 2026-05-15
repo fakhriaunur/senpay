@@ -28,4 +28,8 @@ type LedgerStore interface {
 	//   - next_cursor: opaque string for the next page (empty string if no more results)
 	//   - error: any error encountered
 	QueryByUserID(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]types.Transaction, string, error)
+
+	// FindByID retrieves a single transaction log entry by its ID.
+	// Returns a DomainError with USER_NOT_FOUND if the transaction does not exist.
+	FindByID(ctx context.Context, id uuid.UUID) (types.Transaction, error)
 }
