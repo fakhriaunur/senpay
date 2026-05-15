@@ -165,12 +165,14 @@ func RateLimit(rl *RateLimiter) func(http.Handler) http.Handler {
 				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", retryAfter.Seconds()))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 					"error": map[string]string{
 						"code":    "RATE_LIMITED",
 						"message": "Terlalu banyak permintaan, silakan coba lagi",
 					},
-				})
+				}); encodeErr != nil {
+					slog.Error("failed to encode rate-limit response", "error", encodeErr)
+				}
 				return
 			}
 
@@ -261,10 +263,12 @@ func BILimit(store UserStore) func(http.Handler) http.Handler {
 func writeJSONError(w http.ResponseWriter, err types.DomainError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
 			"message": err.Message,
 		},
-	})
+	}); encodeErr != nil {
+		slog.Error("failed to encode error response", "error", encodeErr)
+	}
 }

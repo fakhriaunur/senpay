@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -78,17 +79,21 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 func writeJSONError(w http.ResponseWriter, err types.DomainError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
 			"message": err.Message,
 		},
-	})
+	}); encodeErr != nil {
+		slog.Error("failed to encode error response", "error", encodeErr)
+	}
 }
 
 // writeJSONResponse writes a success JSON response with the given data.
 func writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	if encodeErr := json.NewEncoder(w).Encode(data); encodeErr != nil {
+		slog.Error("failed to encode response", "error", encodeErr)
+	}
 }

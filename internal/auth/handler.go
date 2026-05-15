@@ -339,7 +339,7 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, kycResponse{KYCLevel: req.KYCLevel})
+	writeJSONResponse(w, http.StatusOK, kycResponse(req))
 }
 
 // Me handles GET /v1/auth/me.
