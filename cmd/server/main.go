@@ -119,11 +119,12 @@ func main() {
 		paymentRail = bank.NewStubAdapter()
 	}
 
-	// Initialize VA store (PostgreSQL).
+	// Initialize VA store and withdraw store (PostgreSQL).
 	vaStore := bank.NewPostgresVAStore(pool)
+	withdrawStore := bank.NewPostgresWithdrawStore(pool)
 
 	// Initialize bank service orchestrator.
-	bankSvc := bank.NewService(pool, vaStore, redisCache, paymentRail, natsClient, userStore)
+	bankSvc := bank.NewService(pool, vaStore, withdrawStore, redisCache, paymentRail, natsClient, userStore)
 
 	// Initialize bank HTTP handlers.
 	bankHandler := bank.NewHandler(bankSvc)
@@ -164,6 +165,9 @@ func main() {
 	// Bank / SNAP endpoints.
 	// Top-up endpoint (protected + BI limit enforced).
 	mux.Handle("POST /v1/topup", authMiddleware(biLimiter(http.HandlerFunc(bankHandler.Topup))))
+
+	// Withdraw endpoint (protected + BI limit enforced).
+	mux.Handle("POST /v1/withdraw", authMiddleware(biLimiter(http.HandlerFunc(bankHandler.Withdraw))))
 
 	// Mock bank endpoints (no auth — mock bank validates SNAP headers internally).
 	mh := mockBank.Handler()

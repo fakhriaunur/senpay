@@ -4,8 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"senpay/internal/types"
+)
+
+// StubBehavior defines the simulated behavior of the stub adapter.
+type StubBehavior string
+
+const (
+	// StubBehaviorSuccess returns a successful response immediately.
+	StubBehaviorSuccess StubBehavior = "success"
+	// StubBehaviorRejection returns ErrBankRejection with HTTP 422 semantics.
+	StubBehaviorRejection StubBehavior = "rejection"
+	// StubBehaviorTimeout simulates a timeout by sleeping beyond context deadline.
+	StubBehaviorTimeout StubBehavior = "timeout"
+	// StubBehaviorSlow responds after 25 seconds (used to test timeout handling).
+	StubBehaviorSlow StubBehavior = "slow"
 )
 
 // ────────────────────────────────────────────────────────────────
@@ -23,6 +38,12 @@ type StubAdapter struct {
 	reversalResponse *ReversalResult
 	// alwaysFail, if true, makes all operations return ErrBankRejection.
 	alwaysFail bool
+	// behavior controls the simulated behavior for withdraw operations.
+	behavior StubBehavior
+	// behavior for credit operations.
+	creditBehavior StubBehavior
+	// behavior for reversal operations.
+	reversalBehavior StubBehavior
 }
 
 // NewStubAdapter creates a new StubAdapter with default successful responses.
@@ -41,16 +62,67 @@ func NewStubAdapter() *StubAdapter {
 		reversalResponse: &ReversalResult{
 			Success: true,
 		},
+		behavior:         StubBehaviorSuccess,
+		creditBehavior:   StubBehaviorSuccess,
+		reversalBehavior: StubBehaviorSuccess,
 	}
 }
 
 // Name returns the adapter name.
 func (s *StubAdapter) Name() string { return "stub" }
 
+// SetBehavior configures the simulated behavior for withdraw operations.
+func (s *StubAdapter) SetBehavior(b StubBehavior) {
+	s.behavior = b
+}
+
+// SetCreditBehavior configures the simulated behavior for credit operations.
+func (s *StubAdapter) SetCreditBehavior(b StubBehavior) {
+	s.creditBehavior = b
+}
+
+// SetReversalBehavior configures the simulated behavior for reversal operations.
+func (s *StubAdapter) SetReversalBehavior(b StubBehavior) {
+	s.reversalBehavior = b
+}
+
+// simulateBehavior applies the configured behavior: delay or error.
+func (s *StubAdapter) simulateBehavior(ctx context.Context, behavior StubBehavior) *types.DomainError {
+	switch behavior {
+	case StubBehaviorSuccess:
+		return nil
+	case StubBehaviorRejection:
+		return &ErrBankRejection
+	case StubBehaviorTimeout:
+		// Sleep until context cancels (timeout).
+		select {
+		case <-ctx.Done():
+			return &ErrTimeout
+		case <-time.After(31 * time.Second):
+			// Shouldn't reach here if context has timeout.
+			return &ErrTimeout
+		}
+	case StubBehaviorSlow:
+		// Sleep for 25 seconds, then return success if context hasn't expired.
+		select {
+		case <-ctx.Done():
+			return &ErrTimeout
+		case <-time.After(25 * time.Second):
+			return nil
+		}
+	default:
+		return nil
+	}
+}
+
 // Credit returns a canned credit response without any network calls.
-func (s *StubAdapter) Credit(_ context.Context, req CreditRequest) (*CreditResult, *types.DomainError) {
+func (s *StubAdapter) Credit(ctx context.Context, req CreditRequest) (*CreditResult, *types.DomainError) {
 	if s.alwaysFail {
 		return nil, &ErrBankRejection
+	}
+
+	if domainErr := s.simulateBehavior(ctx, s.creditBehavior); domainErr != nil {
+		return nil, domainErr
 	}
 
 	// Clone the canned response with a reference ID that includes the external ID.
@@ -62,9 +134,13 @@ func (s *StubAdapter) Credit(_ context.Context, req CreditRequest) (*CreditResul
 }
 
 // Withdraw returns a canned withdraw response without any network calls.
-func (s *StubAdapter) Withdraw(_ context.Context, req WithdrawRequest) (*CreditResult, *types.DomainError) {
+func (s *StubAdapter) Withdraw(ctx context.Context, req WithdrawRequest) (*CreditResult, *types.DomainError) {
 	if s.alwaysFail {
 		return nil, &ErrBankRejection
+	}
+
+	if domainErr := s.simulateBehavior(ctx, s.behavior); domainErr != nil {
+		return nil, domainErr
 	}
 
 	return &CreditResult{
@@ -75,9 +151,13 @@ func (s *StubAdapter) Withdraw(_ context.Context, req WithdrawRequest) (*CreditR
 }
 
 // Reversal returns a canned reversal response without any network calls.
-func (s *StubAdapter) Reversal(_ context.Context, req ReversalRequest) (*ReversalResult, *types.DomainError) {
+func (s *StubAdapter) Reversal(ctx context.Context, req ReversalRequest) (*ReversalResult, *types.DomainError) {
 	if s.alwaysFail {
 		return nil, &ErrBankRejection
+	}
+
+	if domainErr := s.simulateBehavior(ctx, s.reversalBehavior); domainErr != nil {
+		return nil, domainErr
 	}
 
 	return &ReversalResult{

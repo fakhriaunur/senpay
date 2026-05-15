@@ -35,6 +35,7 @@ const (
 	TxStatusCommitted   = "committed"
 	TxStatusFailed      = "failed"
 	TxStatusCompensated = "compensated"
+	TxStatusTimeout     = "timeout"
 )
 
 // Currency.

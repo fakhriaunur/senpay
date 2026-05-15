@@ -2,6 +2,7 @@ package bank
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -562,6 +563,150 @@ func TestSnapAdapter_ParseWebhook(t *testing.T) {
 	_, err = adapter.ParseWebhook([]byte(`{"status":"success"}`))
 	if err == nil {
 		t.Error("expected error for missing va_number")
+	}
+}
+
+// ── Stub Adapter Behavior Tests ────────────────────────────────
+
+func TestStubAdapter_Behavior_Success(t *testing.T) {
+	t.Parallel()
+
+	stub := NewStubAdapter()
+	stub.SetBehavior(StubBehaviorSuccess)
+
+	result, err := stub.Withdraw(context.Background(), WithdrawRequest{
+		BankAccount: "1234567890",
+		AmountSen:   5000000,
+		ExternalID:  "test-success",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Error("expected success=true")
+	}
+	if result.ReferenceID != "STUB-WITHDRAW-test-success" {
+		t.Errorf("reference: got %q, wanted stub format", result.ReferenceID)
+	}
+}
+
+func TestStubAdapter_Behavior_Rejection(t *testing.T) {
+	t.Parallel()
+
+	stub := NewStubAdapter()
+	stub.SetBehavior(StubBehaviorRejection)
+
+	_, err := stub.Withdraw(context.Background(), WithdrawRequest{
+		BankAccount: "1234567890",
+		AmountSen:   5000000,
+		ExternalID:  "test-rejection",
+	})
+	if err == nil {
+		t.Fatal("expected error for rejection behavior")
+	}
+	if err.Code != ErrBankRejection.Code {
+		t.Errorf("code: got %q, want %q", err.Code, ErrBankRejection.Code)
+	}
+	// Verify the error has Indonesian message.
+	if err.Message == "" {
+		t.Error("error message must not be empty")
+	}
+}
+
+func TestStubAdapter_Behavior_Timeout(t *testing.T) {
+	t.Parallel()
+
+	stub := NewStubAdapter()
+	stub.SetBehavior(StubBehaviorTimeout)
+
+	// Create a context with a short timeout so the stub's sleep is cut short.
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := stub.Withdraw(ctx, WithdrawRequest{
+		BankAccount: "1234567890",
+		AmountSen:   5000000,
+		ExternalID:  "test-timeout",
+	})
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if err.Code != ErrTimeout.Code {
+		t.Errorf("code: got %q, want %q", err.Code, ErrTimeout.Code)
+	}
+	// Verify the error has Indonesian message.
+	if err.Message == "" {
+		t.Error("error message must not be empty")
+	}
+}
+
+func TestStubAdapter_CreditBehavior_Rejection(t *testing.T) {
+	t.Parallel()
+
+	stub := NewStubAdapter()
+	stub.SetCreditBehavior(StubBehaviorRejection)
+
+	_, err := stub.Credit(context.Background(), CreditRequest{
+		VANumber:  "8999123456",
+		AmountSen: 10000000,
+	})
+	if err == nil {
+		t.Fatal("expected error for rejection behavior")
+	}
+	if err.Code != ErrBankRejection.Code {
+		t.Errorf("code: got %q, want %q", err.Code, ErrBankRejection.Code)
+	}
+}
+
+func TestStubAdapter_ReversalBehavior_Rejection(t *testing.T) {
+	t.Parallel()
+
+	stub := NewStubAdapter()
+	stub.SetReversalBehavior(StubBehaviorRejection)
+
+	_, err := stub.Reversal(context.Background(), ReversalRequest{
+		ExternalID: "test-rev-rejection",
+		AmountSen:  5000000,
+	})
+	if err == nil {
+		t.Fatal("expected error for rejection behavior")
+	}
+	if err.Code != ErrBankRejection.Code {
+		t.Errorf("code: got %q, want %q", err.Code, ErrBankRejection.Code)
+	}
+}
+
+// TestStubAdapter_Behavior_Slow verifies the slow behavior returns success after 25s
+// when the context has a long enough timeout.
+func TestStubAdapter_Behavior_Slow(t *testing.T) {
+	// Not t.Parallel() — this test takes 25 seconds.
+	if testing.Short() {
+		t.Skip("skipping slow test in short mode")
+	}
+
+	stub := NewStubAdapter()
+	stub.SetBehavior(StubBehaviorSlow)
+
+	// Create a context with enough time for the 25s delay.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	result, err := stub.Withdraw(ctx, WithdrawRequest{
+		BankAccount: "1234567890",
+		AmountSen:   5000000,
+		ExternalID:  "test-slow",
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Error("expected success=true")
+	}
+	if elapsed < 24*time.Second {
+		t.Errorf("expected ~25s delay, got %v", elapsed)
 	}
 }
 
