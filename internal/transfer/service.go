@@ -109,6 +109,9 @@ func (s *Service) Transfer(ctx context.Context, senderID uuid.UUID, req Transfer
 	if req.AmountSen <= 0 {
 		return nil, &types.ErrInvalidAmount
 	}
+	if req.AmountSen < types.MinTransferSen {
+		return nil, &types.ErrAmountBelowMinimum
+	}
 
 	// 2. Idempotency check via Redis.
 	status, err := s.redisCache.Get(ctx, req.IdempotencyKey)
@@ -164,8 +167,12 @@ func (s *Service) Transfer(ctx context.Context, senderID uuid.UUID, req Transfer
 			"key", req.IdempotencyKey)
 		if domainErr, ok := saga.AsDomainError(err); ok {
 			// Permanent domain error — clear in-flight marker.
-			s.redisCache.Delete(ctx, req.IdempotencyKey)
-			s.redisCache.Delete(ctx, req.IdempotencyKey+cachedResultSuffix)
+			if delErr := s.redisCache.Delete(ctx, req.IdempotencyKey); delErr != nil {
+				slog.Warn("failed to clear in-flight marker", "key", req.IdempotencyKey, "error", delErr)
+			}
+			if delErr := s.redisCache.Delete(ctx, req.IdempotencyKey+cachedResultSuffix); delErr != nil {
+				slog.Warn("failed to clear cached result", "key", req.IdempotencyKey, "error", delErr)
+			}
 			return nil, domainErr
 		}
 		// Transient or saga exhaustion — already compensated.
@@ -187,7 +194,11 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) // no-op if already committed.
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.Warn("tx rollback failed", "error", err)
+		}
+	}()
 
 	// Set SERIALIZABLE isolation level.
 	_, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
@@ -456,7 +467,10 @@ func (s *Service) compensate(ctx context.Context, idempotencyKey string) {
 			"key", idempotencyKey, "error", err)
 	}
 	// Also clean up any cached result data.
-	s.redisCache.Delete(ctx, idempotencyKey+cachedResultSuffix)
+	if err := s.redisCache.Delete(ctx, idempotencyKey+cachedResultSuffix); err != nil {
+		slog.Warn("failed to clear cached result during compensation",
+			"key", idempotencyKey, "error", err)
+	}
 }
 
 // natsEventPayload is the event published to NATS on successful transfer.

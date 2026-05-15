@@ -27,6 +27,7 @@ const (
 	ErrCodeInvalidPIN             = "INVALID_PIN"
 	ErrCodeUnauthorized           = "UNAUTHORIZED"
 	ErrCodeExceedsTransactionLimit = "EXCEEDS_TRANSACTION_LIMIT"
+	ErrCodeAmountBelowMinimum     = "AMOUNT_BELOW_MINIMUM"
 	ErrCodeRequestInFlight        = "REQUEST_IN_FLIGHT"
 	ErrCodeSerializationConflict  = "SERIALIZATION_CONFLICT"
 	ErrCodeMissingField           = "MISSING_FIELD"
@@ -36,11 +37,19 @@ const (
 	ErrCodeInternal               = "INTERNAL_ERROR"
 )
 
+// MinTransferSen is the minimum transfer amount in sen (Rp 10).
+const MinTransferSen int64 = 1000
+
 // Pre-built domain errors with Indonesian messages.
 var (
 	ErrInvalidAmount = DomainError{
 		Code:       ErrCodeInvalidAmount,
 		Message:    "Jumlah tidak valid",
+		HTTPStatus: 400,
+	}
+	ErrAmountBelowMinimum = DomainError{
+		Code:       ErrCodeAmountBelowMinimum,
+		Message:    "Jumlah minimal transfer Rp 10",
 		HTTPStatus: 400,
 	}
 	ErrInsufficientBalance = DomainError{
