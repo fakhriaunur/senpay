@@ -74,13 +74,11 @@ const balanceRefreshInterval = 30 * time.Second
 
 // dashboardScreen is the dashboard screen model.
 type dashboardScreen struct {
-	session          *Session
-	focusIndex       int // which quick action is focused (-1 = none/nav area)
-	activeTab        int // current navigation tab
-	errMsg           string
-	tip              string
-	loading          bool
-	lastBalanceFetch time.Time
+	session    *Session
+	focusIndex int // which quick action is focused (-1 = none/nav area)
+	activeTab  int // current navigation tab
+	errMsg     string
+	tip        string
 }
 
 // newDashboardScreen creates a new dashboard screen.
@@ -209,11 +207,15 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 			d.activeTab = NavDashboard
 			return d, nil
 		case "2":
-			d.activeTab = NavTransfer
-			return d, nil
+			// Navigate to Transfer.
+			return d, func() tea.Msg {
+				return quickActionSelectedMsg{actionID: ActionTransfer}
+			}
 		case "3":
-			d.activeTab = NavHistory
-			return d, nil
+			// Navigate to History.
+			return d, func() tea.Msg {
+				return quickActionSelectedMsg{actionID: ActionHistory}
+			}
 		case "4":
 			d.activeTab = NavTopUp
 			return d, nil
@@ -238,11 +240,6 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 		}
 		return d, nil
 
-	case quickActionSelectedMsg:
-		// For now, non-implemented actions show a message.
-		// Later features will implement these screens.
-		d.errMsg = fmt.Sprintf("Fitur %s belum tersedia", quickActions[msg.actionID].label)
-		return d, nil
 	}
 
 	return d, nil
@@ -296,7 +293,7 @@ func (d *dashboardScreen) View() string {
 	b.WriteString("\n")
 
 	// Help text.
-	b.WriteString(HelpStyle.Render("Tab: navigasi • Enter: pilih • 1-5: tab • Ctrl+C: keluar"))
+	b.WriteString(HelpStyle.Render("Tab: navigasi • Enter: pilih • 2: Transfer • 3: History • Ctrl+C: keluar"))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
@@ -308,11 +305,11 @@ func (d *dashboardScreen) renderNav() string {
 		var style lipgloss.Style
 		if tab.id == d.activeTab {
 			style = NavTabActiveStyle
-		} else if tab.id == NavLogin || tab.id == NavDashboard {
-			// Login (Profile) and Dashboard are available.
+		} else if tab.id == NavLogin || tab.id == NavDashboard || tab.id == NavTransfer || tab.id == NavHistory {
+			// Login (Profile), Dashboard, Transfer, History are available.
 			style = NavTabStyle.Foreground(lipgloss.Color(colorSecondary))
 		} else {
-			// Other tabs are disabled (not yet implemented).
+			// Top Up and Withdraw are disabled (not yet implemented).
 			style = NavTabDisabledStyle
 		}
 		tabs = append(tabs, style.Render(tab.label))

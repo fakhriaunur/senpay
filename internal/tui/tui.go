@@ -18,6 +18,10 @@ type screenID int
 const (
 	screenLogin screenID = iota
 	screenDashboard
+	screenTransfer
+	screenTransferSuccess
+	screenHistory
+	screenDetail
 )
 
 // Model is the top-level Bubble Tea model that manages screens.
@@ -26,6 +30,9 @@ type Model struct {
 	current     screenID
 	login       *loginScreen
 	dashboard   *dashboardScreen
+	transfer    *transferScreen
+	history     *historyScreen
+	detail      *detailScreen
 	quitting    bool
 	windowWidth  int
 	windowHeight int
@@ -78,12 +85,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Handle navigation messages globally.
+	switch msg := msg.(type) {
+	case navigateToDashboardMsg:
+		m.transitionToDashboard()
+		return m, m.dashboard.Init()
+
+	case viewDetailMsg:
+		m.current = screenDetail
+		m.detail = newDetailScreen(m.session, msg.tx)
+		return m, nil
+
+	case navigateToHistoryMsg:
+		m.current = screenHistory
+		// Refresh history when coming back from detail.
+		m.history = newHistoryScreen(m.session)
+		return m, m.history.Init()
+	}
+
 	// Delegate to the active screen.
 	switch m.current {
 	case screenLogin:
 		return m.updateLogin(msg)
 	case screenDashboard:
 		return m.updateDashboard(msg)
+	case screenTransfer:
+		return m.updateTransfer(msg)
+	case screenHistory:
+		return m.updateHistory(msg)
+	case screenDetail:
+		return m.updateDetail(msg)
 	}
 
 	return m, nil
@@ -107,6 +138,43 @@ func (m *Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) updateDashboard(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.dashboard, cmd = m.dashboard.Update(msg)
+
+	// Check for quick action selections.
+	switch msg := msg.(type) {
+	case quickActionSelectedMsg:
+		switch msg.actionID {
+		case ActionTransfer:
+			m.current = screenTransfer
+			m.transfer = newTransferScreen(m.session)
+			return m, m.transfer.Init()
+		case ActionHistory:
+			m.current = screenHistory
+			m.history = newHistoryScreen(m.session)
+			return m, m.history.Init()
+		}
+	}
+
+	return m, cmd
+}
+
+// updateTransfer handles messages for the transfer screen.
+func (m *Model) updateTransfer(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.transfer, cmd = m.transfer.Update(msg)
+	return m, cmd
+}
+
+// updateHistory handles messages for the history screen.
+func (m *Model) updateHistory(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.history, cmd = m.history.Update(msg)
+	return m, cmd
+}
+
+// updateDetail handles messages for the detail screen.
+func (m *Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.detail, cmd = m.detail.Update(msg)
 	return m, cmd
 }
 
@@ -128,6 +196,12 @@ func (m *Model) View() string {
 		return m.login.View()
 	case screenDashboard:
 		return m.dashboard.View()
+	case screenTransfer:
+		return m.transfer.View()
+	case screenHistory:
+		return m.history.View()
+	case screenDetail:
+		return m.detail.View()
 	}
 	return ""
 }
