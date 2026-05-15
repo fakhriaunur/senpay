@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS balance_snapshot;
+DROP TABLE IF EXISTS tx_log;
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS users;

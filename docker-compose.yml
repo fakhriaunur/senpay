@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:18-bookworm
+    container_name: senpay-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: senpay
+      POSTGRES_PASSWORD: senpay_dev
+      POSTGRES_DB: senpay
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U senpay"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.6
+    container_name: senpay-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.14-alpine
+    container_name: senpay-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

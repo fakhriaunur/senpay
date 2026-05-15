@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+env:
+  GO_VERSION: "1.25"
+  GOLANGCI_LINT_VERSION: "v1.64"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+
+      - name: go vet
+        run: go vet ./...
+
+  core-test:
+    name: Core Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run core tests
+        run: go test ./internal/... -count=1 -timeout 60s -short -run 'Test.*[Cc]ore|Property|TestMetrics'
+
+  shell-test:
+    name: Shell Tests (Integration)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Start Docker services
+        run: |
+          docker compose up -d
+          until docker compose exec -T postgres pg_isready -U senpay 2>/dev/null; do sleep 1; done
+          until docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done
+
+      - name: Run shell tests
+        run: go test ./internal/... -count=1 -timeout 120s -tags=integration -run 'Test.*Contract|Integration|Postgres|Redis|NATS'
+
+      - name: Stop Docker services
+        if: always()
+        run: docker compose down
