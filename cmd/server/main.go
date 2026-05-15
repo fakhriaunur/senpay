@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"senpay/internal/auth"
+	"senpay/internal/bank"
 	"senpay/internal/config"
 	"senpay/internal/gateway"
 	"senpay/internal/idempotency"
@@ -99,6 +100,35 @@ func main() {
 	txLogStore := ledger.NewPostgresTxLogStore(pool)
 	txHandler := transactions.NewHandler(txLogStore, userStore)
 
+	// ── Bank / SNAP / Top-up ──────────────────────────────────
+
+	// Initialize mock bank server (in-process).
+	mockBankConfig := bank.DefaultMockBankConfig()
+	mockBankConfig.WebhookURL = fmt.Sprintf("http://127.0.0.1:%d/bank/webhook", cfg.Port)
+	mockBank := bank.NewMockBank(mockBankConfig)
+
+	// Initialize bank adapter (PaymentRail).
+	var paymentRail bank.PaymentRail
+	if cfg.BankProvider == "snap" {
+		// Real SNAP adapter contacts the mock bank via HTTP.
+		baseURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)
+		paymentRail = bank.NewSnapAdapter(baseURL, mockBankConfig.ClientSecret,
+			mockBankConfig.PartnerID, mockBankConfig.ChannelID)
+	} else {
+		// Stub adapter — no network calls, returns canned responses.
+		paymentRail = bank.NewStubAdapter()
+	}
+
+	// Initialize VA store (PostgreSQL).
+	vaStore := bank.NewPostgresVAStore(pool)
+
+	// Initialize bank service orchestrator.
+	bankSvc := bank.NewService(pool, vaStore, redisCache, paymentRail, natsClient, userStore)
+
+	// Initialize bank HTTP handlers.
+	bankHandler := bank.NewHandler(bankSvc)
+	bankWebhook := bank.NewWebhookHandler(bankSvc)
+
 	metrics := telemetry.NewMetrics()
 
 	mux := http.NewServeMux()
@@ -130,6 +160,20 @@ func main() {
 
 	// Transfer endpoint (protected + BI limit enforced).
 	mux.Handle("POST /v1/transfer", authMiddleware(biLimiter(http.HandlerFunc(transferHandler.Transfer))))
+
+	// Bank / SNAP endpoints.
+	// Top-up endpoint (protected + BI limit enforced).
+	mux.Handle("POST /v1/topup", authMiddleware(biLimiter(http.HandlerFunc(bankHandler.Topup))))
+
+	// Mock bank endpoints (no auth — mock bank validates SNAP headers internally).
+	mh := mockBank.Handler()
+	mux.Handle("GET /bank/health", mh)
+	mux.Handle("POST /bank/api/v1/credit", mh)
+	mux.Handle("POST /bank/api/v1/withdraw", mh)
+	mux.Handle("POST /bank/api/v1/reversal", mh)
+
+	// Bank webhook callback endpoint (no auth — called by mock bank internally).
+	mux.HandleFunc("POST /bank/webhook", bankWebhook.HandleWebhook)
 
 	// Apply global gateway middleware stack (outermost to innermost).
 	handler := gateway.Recovery(mux)
