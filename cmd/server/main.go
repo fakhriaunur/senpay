@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,10 +13,14 @@ import (
 	"senpay/internal/auth"
 	"senpay/internal/config"
 	"senpay/internal/gateway"
+	"senpay/internal/idempotency"
+	"senpay/internal/nats"
 	"senpay/internal/store/migrations"
 	"senpay/internal/telemetry"
+	"senpay/internal/transfer"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -56,6 +59,36 @@ func main() {
 	rateLimiter := gateway.DefaultRateLimiter()
 	biLimiter := gateway.BILimit(userStore)
 
+	// Initialize Redis client.
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		slog.Error("invalid redis URL", "error", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(redisOpts)
+	defer redisClient.Close()
+
+	// Verify Redis connectivity.
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		slog.Error("redis ping failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("connected to redis")
+
+	// Initialize NATS client.
+	natsClient, err := nats.Connect(cfg.NatsURL)
+	if err != nil {
+		slog.Error("nats connection failed", "error", err)
+		os.Exit(1)
+	}
+	defer natsClient.Close()
+	slog.Info("connected to nats")
+
+	// Initialize transfer service and handler.
+	redisCache := idempotency.NewRedisIdempotencyCache(redisClient)
+	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore)
+	transferHandler := transfer.NewHandler(transferSvc)
+
 	metrics := telemetry.NewMetrics()
 
 	mux := http.NewServeMux()
@@ -79,8 +112,7 @@ func main() {
 	mux.Handle("GET /v1/balance", authMiddleware(http.HandlerFunc(authHandler.Balance)))
 
 	// Transfer endpoint (protected + BI limit enforced).
-	// Stub handler for now; will be replaced by transfer-saga feature.
-	mux.Handle("POST /v1/transfer", authMiddleware(biLimiter(http.HandlerFunc(transferStub))))
+	mux.Handle("POST /v1/transfer", authMiddleware(biLimiter(http.HandlerFunc(transferHandler.Transfer))))
 
 	// Apply global gateway middleware stack (outermost to innermost).
 	handler := gateway.Recovery(mux)
@@ -122,15 +154,6 @@ func main() {
 	}
 
 	slog.Info("server stopped")
-}
-
-// transferStub is a placeholder handler for /v1/transfer.
-// BI limit middleware runs before this handler, so over-limit requests
-// are rejected with LIMIT_EXCEEDED before reaching here.
-func transferStub(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "stub"})
 }
 
 // connectDB establishes a connection pool to PostgreSQL.
