@@ -8,6 +8,7 @@ import (
 
 	"senpay/internal/auth"
 	"senpay/internal/i18n"
+	"senpay/internal/senpai/llm"
 	"senpay/internal/types"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,14 +19,17 @@ type Handler struct {
 	queryStore  *QueryStore
 	budgetStore *BudgetStore
 	fullEnabled bool
+	nudgeLLM    llm.NudgeLLM // optional LLM adapter for nudge tips
 }
 
 // NewHandler creates a new senpai Handler.
-func NewHandler(pool *pgxpool.Pool, fullEnabled bool) *Handler {
+// If nudgeLLM is nil, LLM-powered nudge tips are disabled.
+func NewHandler(pool *pgxpool.Pool, fullEnabled bool, nudgeLLM llm.NudgeLLM) *Handler {
 	return &Handler{
 		queryStore:  NewQueryStore(pool),
 		budgetStore: NewBudgetStore(pool),
 		fullEnabled: fullEnabled,
+		nudgeLLM:    nudgeLLM,
 	}
 }
 
@@ -238,9 +242,37 @@ func (h *Handler) Nudge(w http.ResponseWriter, r *http.Request) {
 		daysRemaining,
 	)
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	// Build response with optional LLM tip.
+	resp := map[string]interface{}{
 		"data": nudges,
-	})
+	}
+
+	if h.nudgeLLM != nil && len(nudges) > 0 {
+		prompt := buildLLMPrompt(nudges)
+		tip, tipErr := h.nudgeLLM.Generate(r.Context(), prompt)
+		if tipErr != nil {
+			// LLM failure is non-fatal — omit llm_tip, return rule-based nudges normally.
+			slog.Warn("llm nudge tip generation failed", "error", tipErr)
+		} else if tip != "" {
+			resp["llm_tip"] = tip
+		}
+	}
+
+	writeJSONResponse(w, http.StatusOK, resp)
+}
+
+// buildLLMPrompt constructs a prompt for the LLM based on the user's nudges.
+// The prompt asks for concise Indonesian financial advice.
+func buildLLMPrompt(nudges []Nudge) string {
+	var sb []byte
+	sb = append(sb, "Berikut adalah kondisi keuangan pengguna saat ini:\n"...)
+	for _, n := range nudges {
+		sb = append(sb, "- "...)
+		sb = append(sb, n.Message...)
+		sb = append(sb, '\n')
+	}
+	sb = append(sb, "\nBerdasarkan kondisi di atas, berikan 1-2 kalimat saran keuangan singkat dalam Bahasa Indonesia. Jangan ulangi kondisi yang sudah disebutkan. Langsung berikan sarannya."...)
+	return string(sb)
 }
 
 // ────────────────────────────────────────────────────────────────

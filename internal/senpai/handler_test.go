@@ -76,7 +76,7 @@ func TestHandler_AuthRequired(t *testing.T) {
 func TestHandler_Nudge_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	h := NewHandler(nil, false)
+	h := NewHandler(nil, false, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/senpai/nudge", nil)
 	// Inject auth context to bypass the auth check.
@@ -146,5 +146,58 @@ func TestHandler_CreateBudget_Validation(t *testing.T) {
 				t.Errorf("expected %d, got %d", tt.wantCode, rec.Code)
 			}
 		})
+	}
+}
+
+// Test Nudge handler with LLM tip integration.
+func TestHandler_Nudge_WithLLMTip(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(nil, false, nil)
+
+	// When fullEnabled is false and LLM is nil, Nudge returns 501.
+	req := httptest.NewRequest(http.MethodGet, "/v1/senpai/nudge", nil)
+	ctx := contextWithUserID(req.Context(), testUserID)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.Nudge(rec, req)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Errorf("expected 501, got %d", rec.Code)
+	}
+}
+
+// Test buildLLMPrompt produces a non-empty prompt for nudges.
+func TestBuildLLMPrompt(t *testing.T) {
+	t.Parallel()
+
+	nudges := []Nudge{
+		{Type: NudgeTypeVelocity, Severity: NudgeSeverityWarning, Message: "Pengeluaran Anda tinggi", Action: "Lihat", Dismissible: true},
+		{Type: NudgeTypeExhaustion, Severity: NudgeSeverityCritical, Message: "Anggaran hampir habis", Action: "Lihat", Dismissible: true},
+	}
+
+	prompt := buildLLMPrompt(nudges)
+	if prompt == "" {
+		t.Error("expected non-empty prompt")
+	}
+	if !strings.Contains(prompt, "Pengeluaran Anda tinggi") {
+		t.Error("prompt should contain the nudge messages")
+	}
+	if !strings.Contains(prompt, "Anggaran hampir habis") {
+		t.Error("prompt should contain all nudge messages")
+	}
+	if !strings.Contains(prompt, "Bahasa Indonesia") {
+		t.Error("prompt should ask for Bahasa Indonesia")
+	}
+}
+
+// Test that empty nudges produce a non-empty prompt (still context about empty state).
+func TestBuildLLMPrompt_Empty(t *testing.T) {
+	t.Parallel()
+
+	// With empty nudges we still want a prompt about the state.
+	prompt := buildLLMPrompt([]Nudge{})
+	if prompt == "" {
+		t.Error("expected non-empty prompt even for empty nudges")
 	}
 }

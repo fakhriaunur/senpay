@@ -19,6 +19,7 @@ import (
 	"senpay/internal/ledger"
 	"senpay/internal/nats"
 	"senpay/internal/senpai"
+	"senpay/internal/senpai/llm"
 	"senpay/internal/store/migrations"
 	"senpay/internal/telemetry"
 	"senpay/internal/transfer"
@@ -206,8 +207,19 @@ func main() {
 	// Bank webhook callback endpoint (no auth — called by mock bank internally).
 	mux.HandleFunc("POST /bank/webhook", bankWebhook.HandleWebhook)
 
+	// ── LLM-powered nudge tips ──────────────────────────────────
+	llmCfg := llm.LoadConfigFromEnv()
+	if llmCfg.IsEnabled() {
+		slog.Info("llm nudge tips enabled",
+			"provider", llmCfg.Provider,
+			"model", llmCfg.Model,
+			"base_url", llmCfg.BaseURL,
+		)
+	}
+	nudgeLLM := llm.NewNudgeLLM(llmCfg)
+
 	// ── Senpai Analytics & Budgets ──────────────────────────────
-	senpaiHandler := senpai.NewHandler(pool, cfg.SenpaiFullEnabled)
+	senpaiHandler := senpai.NewHandler(pool, cfg.SenpaiFullEnabled, nudgeLLM)
 
 	// Senpai endpoints (all protected by auth middleware).
 	mux.Handle("GET /v1/senpai/summary", authMiddleware(http.HandlerFunc(senpaiHandler.Summary)))

@@ -43,6 +43,12 @@ type Config struct {
 	// Feature flags
 	SenpaiFullEnabled bool
 
+	// LLM-powered nudge tips
+	SenpaiLLMProvider  string
+	SenpaiLLMBaseURL   string
+	SenpaiLLMAPIKey    string
+	SenpaiLLMModel     string
+
 	// Bank provider: "stub" or "snap"
 	BankProvider types.BankProvider
 	// BankHTTPTimeout is the HTTP client timeout for bank adapter requests.
@@ -67,6 +73,10 @@ func Load() Config {
 		JWTSecret:         getEnv("JWT_SECRET", ""),
 		TokenStoreCleanupInterval: getEnvDuration("TOKEN_CLEANUP_INTERVAL", 1*time.Hour),
 		SenpaiFullEnabled:         getEnvBool("SENPAI_FULL_ENABLED", false),
+		SenpaiLLMProvider:         getEnv("SENPAI_LLM_PROVIDER", ""),
+		SenpaiLLMBaseURL:          getEnv("SENPAI_LLM_BASE_URL", ""),
+		SenpaiLLMAPIKey:           getEnv("SENPAI_LLM_API_KEY", ""),
+		SenpaiLLMModel:            getEnv("SENPAI_LLM_MODEL", ""),
 		BankProvider:              parseBankProvider(getEnv("BANK_PROVIDER", "stub")),
 		BankHTTPTimeout:           getEnvDuration("BANK_HTTP_TIMEOUT", 30*time.Second),
 		WithdrawTimeout:           getEnvDuration("WITHDRAW_TIMEOUT", 30*time.Second),
