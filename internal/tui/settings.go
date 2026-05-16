@@ -15,7 +15,6 @@ import (
 type settingsScreen struct {
 	session    *Session
 	focusIndex int // 0=language toggle, 1=save button
-	errMsg     string
 }
 
 // newSettingsScreen creates a new settings screen.
