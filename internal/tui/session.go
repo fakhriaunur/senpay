@@ -4,18 +4,20 @@ import "senpay/internal/i18n"
 
 // Session holds the authenticated user's session state.
 type Session struct {
-	Token        string
-	RefreshToken string
-	Phone        string
-	BalanceSen   int64
-	BalanceVer   int
-	Language     string
+	Token           string
+	RefreshToken    string
+	Phone           string
+	BalanceSen      int64
+	BalanceVer      int
+	Language        string
+	DismissedNudges map[string]bool // set of dismissed nudge messages, session-scoped
 }
 
 // NewSession creates a new empty session.
 func NewSession() *Session {
 	return &Session{
-		Language: i18n.DefaultLang,
+		Language:        i18n.DefaultLang,
+		DismissedNudges: make(map[string]bool),
 	}
 }
 

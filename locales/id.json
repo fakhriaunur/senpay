@@ -36,6 +36,11 @@
   "senpai_tip_8": "Pantau histori transaksi untuk evaluasi keuangan",
   "help_dashboard": "Tab: navigasi • Enter: pilih • 1:T 2:U 3:H 4:W • ?: bantuan • Ctrl+C: keluar",
   "error_balance_fetch": "Gagal memperbarui saldo",
+  "nudge_title": "Pengingat Senpai",
+  "nudge_dismiss": "[x] Tutup",
+  "nudge_action_hint": "[→ %s]",
+  "error_nudge_fetch": "Gagal memuat pengingat",
+  "help_dismiss_nudge": "X: tutup pengingat",
 
   "title_transfer": "Transfer",
   "subtitle_transfer": "Kirim uang ke pengguna lain",

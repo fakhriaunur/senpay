@@ -382,6 +382,7 @@ func (m *Model) renderHelpOverlay() string {
 		helpItem("2 / U", T("help_dash_topup", lang)),
 		helpItem("3 / H", T("help_dash_history", lang)),
 		helpItem("4 / W", T("help_dash_withdraw", lang)),
+		helpItem("X", "Tutup pengingat / Dismiss nudge"),
 		"",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine(T("help_topup_shortcuts", lang))),
 		helpItem("← →", T("help_topup_method_sel", lang)),

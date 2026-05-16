@@ -437,6 +437,67 @@ func PostWithdraw(token, idempotencyKey string, amountSen int64, bankAccount str
 	return &apiResp.Data, nil
 }
 
+// --- Nudge API ---
+
+// NudgeItem represents a single financial nudge from the API.
+type NudgeItem struct {
+	Type        string `json:"type"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	Action      string `json:"action,omitempty"`
+	Dismissible bool   `json:"dismissible"`
+}
+
+// nudgeListResponse is the JSON response for GET /v1/senpai/nudge.
+type nudgeListResponse struct {
+	Data []NudgeItem `json:"data"`
+}
+
+// GetNudges calls GET /v1/senpai/nudge with the given token.
+func GetNudges(token string) ([]NudgeItem, error) {
+	req, err := http.NewRequest("GET", BaseURL+"/v1/senpai/nudge", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("network error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotImplemented {
+			return nil, nil // feature disabled, no nudges
+		}
+		var errResp errorResponse
+		if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Error.Message != "" {
+			return nil, &apiError{Code: errResp.Error.Code, Message: errResp.Error.Message}
+		}
+		return nil, &apiError{
+			Code:    "UNKNOWN",
+			Message: fmt.Sprintf("Gagal mengambil nudge (status %d)", resp.StatusCode),
+		}
+	}
+
+	var nudgeResp nudgeListResponse
+	if err := json.Unmarshal(respBody, &nudgeResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	if nudgeResp.Data == nil {
+		return []NudgeItem{}, nil
+	}
+
+	return nudgeResp.Data, nil
+}
+
 // GetTransactionDetail calls GET /v1/transactions/{id}.
 func GetTransactionDetail(token, txID string) (*TransactionItem, error) {
 	req, err := http.NewRequest("GET", BaseURL+"/v1/transactions/"+txID, nil)

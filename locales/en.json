@@ -36,6 +36,10 @@
   "senpai_tip_8": "Monitor transaction history for financial evaluation",
   "help_dashboard": "Tab: navigate • Enter: select • 1:T 2:U 3:H 4:W • ?: help • Ctrl+C: quit",
   "error_balance_fetch": "Failed to update balance",
+  "nudge_title": "Senpai Reminder",
+  "nudge_dismiss": "[x] Dismiss",
+  "nudge_action_hint": "[→ %s]",
+  "error_nudge_fetch": "Failed to load reminders",
 
   "title_transfer": "Transfer",
   "subtitle_transfer": "Send money to another user",
