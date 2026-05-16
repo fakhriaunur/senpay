@@ -1140,9 +1140,9 @@ func checkBILimit(amount types.Money, kycLevel types.KYCLevel) *types.DomainErro
 	var limit types.Money
 	switch kycLevel {
 	case types.KYCLevelVerified:
-		limit = 1_000_000_000 // Rp 10.000.000 = 1.000.000.000 sen
+		limit = types.BILimitVerifiedSen
 	default:
-		limit = 200_000_000 // Rp 2.000.000 = 200.000.000 sen
+		limit = types.BILimitBasicSen
 	}
 
 	if amount > limit {

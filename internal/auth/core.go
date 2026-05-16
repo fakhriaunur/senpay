@@ -18,7 +18,7 @@ const pepper = "senpay-p3pper-2026"
 // to provide an additional layer of secrecy.
 func HashPIN(pin string) string {
 	combined := pepper + pin
-	hash, err := bcrypt.GenerateFromPassword([]byte(combined), 12)
+	hash, err := bcrypt.GenerateFromPassword([]byte(combined), types.BcryptCost)
 	if err != nil {
 		panic("auth: bcrypt hash failed: " + err.Error())
 	}
@@ -68,13 +68,13 @@ func ValidatePhone(phone string) *types.DomainError {
 
 	// Check length.
 	digitLen := len(normalized)
-	if digitLen < 10 || digitLen > 13 {
+	if digitLen < types.PhoneMinLength || digitLen > types.PhoneMaxLength {
 		err := DomainErrorPhoneLength
 		return &err
 	}
 
 	// Check prefix.
-	if !strings.HasPrefix(normalized, "08") && !strings.HasPrefix(normalized, "62") {
+	if !strings.HasPrefix(normalized, types.PhonePrefix08) && !strings.HasPrefix(normalized, types.PhonePrefix62) {
 		err := types.NewInvalidFormatError("phone", "nomor harus dimulai dengan 08 atau 62")
 		return &err
 	}

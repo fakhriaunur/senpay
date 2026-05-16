@@ -23,14 +23,6 @@ type contextKey string
 const (
 	// CtxKeyRequestID is the context key for the request ID.
 	CtxKeyRequestID contextKey = "request_id"
-
-	// BILimitBasicSen is the per-transaction limit for basic KYC users in sen.
-	// Rp 2.000.000 = 200,000,000 sen.
-	BILimitBasicSen types.Money = 200_000_000
-
-	// BILimitVerifiedSen is the per-transaction limit for verified KYC users in sen.
-	// Rp 10.000.000 = 1,000,000,000 sen.
-	BILimitVerifiedSen types.Money = 1_000_000_000
 )
 
 // GetRequestID extracts the request ID from context.
@@ -233,9 +225,9 @@ func BILimit(store UserStore) func(http.Handler) http.Handler {
 			var limit types.Money
 			switch user.KYCLevel {
 			case types.KYCLevelVerified:
-				limit = BILimitVerifiedSen
+				limit = types.BILimitVerifiedSen
 			default: // basic or unknown
-				limit = BILimitBasicSen
+				limit = types.BILimitBasicSen
 			}
 
 			// Enforce limit.

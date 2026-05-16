@@ -124,7 +124,7 @@ func isTransient(err error) bool {
 	// PostgreSQL serialization/deadlock errors.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		if pgErr.Code == "40001" || pgErr.Code == "40P01" {
+		if pgErr.Code == types.SQLSerializationError || pgErr.Code == types.SQLDeadlockError {
 			return true
 		}
 	}

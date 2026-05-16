@@ -90,8 +90,14 @@ func (rl *RateLimiter) Allow(key string) (ok bool, retryAfter time.Duration) {
 	return bucket.Allow()
 }
 
+// DefaultRateLimitRPS is the default rate limit in requests per second.
+const DefaultRateLimitRPS = 100
+
+// DefaultRateLimitBurst is the default burst size for the rate limiter.
+const DefaultRateLimitBurst = 200
+
 // DefaultRateLimiter returns a rate limiter with sensible defaults:
 // 100 requests per second, burst of 200.
 func DefaultRateLimiter() *RateLimiter {
-	return NewRateLimiter(100, 200)
+	return NewRateLimiter(DefaultRateLimitRPS, DefaultRateLimitBurst)
 }

@@ -33,6 +33,12 @@ const (
 	minHeight = 24
 )
 
+// DefaultTUIMinAmountSen is the minimum amount for top-up and withdraw in the TUI (Rp 100).
+const DefaultTUIMinAmountSen = 10_000
+
+// TUIPhoneMaxLength is the maximum phone length accepted by the TUI.
+const TUIPhoneMaxLength = 15
+
 // Model is the top-level Bubble Tea model that manages screens.
 type Model struct {
 	session      *Session

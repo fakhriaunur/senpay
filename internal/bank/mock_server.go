@@ -53,14 +53,23 @@ type MockBankConfig struct {
 	AlwaysTimeout bool
 }
 
+// DefaultMockBankMinDelay is the minimum simulated processing delay.
+const DefaultMockBankMinDelay = 500 * time.Millisecond
+
+// DefaultMockBankMaxDelay is the maximum simulated processing delay.
+const DefaultMockBankMaxDelay = 2 * time.Second
+
+// DefaultMockBankWebhookDelay is the delay before sending webhook callback.
+const DefaultMockBankWebhookDelay = 1 * time.Second
+
 // DefaultMockBankConfig returns a default configuration for the mock bank.
 func DefaultMockBankConfig() MockBankConfig {
 	return MockBankConfig{
 		ClientSecret: "senpay-mock-secret",
 		PartnerID:    SNAPPartnerID,
 		ChannelID:    SNAPChannelID,
-		MinDelay:     500 * time.Millisecond,
-		MaxDelay:     2 * time.Second,
+		MinDelay:     DefaultMockBankMinDelay,
+		MaxDelay:     DefaultMockBankMaxDelay,
 		WebhookURL:   "", // set when registering the webhook handler
 		AlwaysTimeout: false,
 	}
@@ -379,7 +388,7 @@ func (m *MockBank) triggerWebhook(externalID, creditBody string) {
 	}
 
 	// Small delay before sending webhook (simulates bank processing time).
-	time.Sleep(1 * time.Second)
+	time.Sleep(DefaultMockBankWebhookDelay)
 
 	slog.Info("sending webhook callback",
 		"url", m.config.WebhookURL,

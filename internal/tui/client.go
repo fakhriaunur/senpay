@@ -10,13 +10,19 @@ import (
 	"time"
 )
 
+// DefaultAPIPort is the default backend API port.
+const DefaultAPIPort = 8384
+
+// DefaultHTTPTimeout is the default HTTP client timeout for TUI API calls.
+const DefaultHTTPTimeout = 10 * time.Second
+
 // BaseURL is the backend API base URL.
 // Defaults to localhost:8384.
-var BaseURL = "http://127.0.0.1:8384"
+var BaseURL = fmt.Sprintf("http://127.0.0.1:%d", DefaultAPIPort)
 
 // HTTPClient is the HTTP client used for API calls.
 var HTTPClient = &http.Client{
-	Timeout: 10 * time.Second,
+	Timeout: DefaultHTTPTimeout,
 }
 
 // loginRequest is the JSON body for POST /v1/auth/login.

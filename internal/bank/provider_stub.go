@@ -9,6 +9,12 @@ import (
 	"senpay/internal/types"
 )
 
+// StubTimeoutDelay is the simulated timeout delay for stub adapter (31 seconds).
+const StubTimeoutDelay = 31 * time.Second
+
+// StubSlowDelay is the simulated slow response delay for stub adapter (25 seconds).
+const StubSlowDelay = 25 * time.Second
+
 // StubBehavior defines the simulated behavior of the stub adapter.
 type StubBehavior string
 
@@ -98,7 +104,7 @@ func (s *StubAdapter) simulateBehavior(ctx context.Context, behavior StubBehavio
 		select {
 		case <-ctx.Done():
 			return &ErrTimeout
-		case <-time.After(31 * time.Second):
+		case <-time.After(StubTimeoutDelay):
 			// Shouldn't reach here if context has timeout.
 			return &ErrTimeout
 		}
@@ -107,7 +113,7 @@ func (s *StubAdapter) simulateBehavior(ctx context.Context, behavior StubBehavio
 		select {
 		case <-ctx.Done():
 			return &ErrTimeout
-		case <-time.After(25 * time.Second):
+		case <-time.After(StubSlowDelay):
 			return nil
 		}
 	default:

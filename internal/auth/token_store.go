@@ -53,6 +53,10 @@ func (ts *TokenStore) Stop() {
 	close(ts.stopCh)
 }
 
+// TokenCleanupThresholdDays is the age threshold in days for cleaning up used tokens.
+// Set to 8 days (RefreshTokenDuration + buffer).
+const TokenCleanupThresholdDays = 8
+
 // cleanupLoop periodically removes expired entries.
 // Since we use the map as an ever-growing set, entries are only removed
 // when the store is stopped. For a production system with long TTLs,
@@ -66,7 +70,7 @@ func (ts *TokenStore) cleanupLoop() {
 		case <-ticker.C:
 			ts.mu.Lock()
 			// Remove entries older than 8 days (RefreshTokenDuration + buffer).
-			threshold := time.Now().Add(-8 * 24 * time.Hour)
+			threshold := time.Now().Add(-TokenCleanupThresholdDays * 24 * time.Hour)
 			for key, added := range ts.used {
 				if added.Before(threshold) {
 					delete(ts.used, key)

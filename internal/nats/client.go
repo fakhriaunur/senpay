@@ -31,6 +31,15 @@ type Client struct {
 	conn *gnatsd.Conn
 }
 
+// DefaultNATSReconnectWait is the wait time between NATS reconnect attempts.
+const DefaultNATSReconnectWait = 2 * time.Second
+
+// DefaultNATSTimeout is the default NATS connection timeout.
+const DefaultNATSTimeout = 5 * time.Second
+
+// DefaultNATSChanBuffer is the default NATS subscription channel buffer size.
+const DefaultNATSChanBuffer = 64
+
 // Connect establishes a connection to a NATS server.
 // The url format is "nats://host:port".
 // The connection uses nats.go's built-in auto-reconnect with
@@ -39,8 +48,8 @@ func Connect(url string) (*Client, error) {
 	conn, err := gnatsd.Connect(url,
 		gnatsd.RetryOnFailedConnect(true),
 		gnatsd.MaxReconnects(-1), // unlimited reconnects
-		gnatsd.ReconnectWait(2*time.Second),
-		gnatsd.Timeout(5*time.Second),
+		gnatsd.ReconnectWait(DefaultNATSReconnectWait),
+		gnatsd.Timeout(DefaultNATSTimeout),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
@@ -76,7 +85,7 @@ func (c *Client) Subscribe(subject string) (<-chan []byte, error) {
 		return nil, fmt.Errorf("nats not connected")
 	}
 
-	payloadCh := make(chan []byte, 64)
+	payloadCh := make(chan []byte, DefaultNATSChanBuffer)
 
 	sub, err := c.conn.Subscribe(subject, func(msg *gnatsd.Msg) {
 		payloadCh <- msg.Data
@@ -103,7 +112,7 @@ func (c *Client) QueueSubscribe(subject, queue string) (<-chan []byte, error) {
 		return nil, fmt.Errorf("nats not connected")
 	}
 
-	payloadCh := make(chan []byte, 64)
+	payloadCh := make(chan []byte, DefaultNATSChanBuffer)
 
 	sub, err := c.conn.QueueSubscribe(subject, queue, func(msg *gnatsd.Msg) {
 		payloadCh <- msg.Data

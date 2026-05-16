@@ -24,6 +24,18 @@ const (
 	topupStateError
 )
 
+// DefaultVADisplayTTL is the fallback TTL for VA display when not provided by API.
+const DefaultVADisplayTTL = 1 * time.Hour
+
+// CountdownTickInterval is the interval for the VA countdown timer.
+const CountdownTickInterval = 1 * time.Second
+
+// CountdownUrgentMinutes is the minute threshold for urgent countdown coloring.
+const CountdownUrgentMinutes = "30"
+
+// CountdownCriticalMinutes is the minute threshold for critical countdown coloring.
+const CountdownCriticalMinutes = "10"
+
 // Payment methods for top-up.
 var topupMethods = []string{
 	"Virtual Account (BRI)",
@@ -104,7 +116,7 @@ func topupCmd(token, idempotencyKey string, amountSen int64) tea.Cmd {
 
 		expiresAt, _ := time.Parse(time.RFC3339Nano, result.ExpiresAt)
 		if expiresAt.IsZero() {
-			expiresAt = time.Now().Add(1 * time.Hour)
+			expiresAt = time.Now().Add(DefaultVADisplayTTL)
 		}
 
 		return topupSubmitMsg{
@@ -119,7 +131,7 @@ func topupCmd(token, idempotencyKey string, amountSen int64) tea.Cmd {
 
 // countdownTick creates a tick for countdown timer (every second).
 func countdownTick() tea.Cmd {
-	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(CountdownTickInterval, func(t time.Time) tea.Msg {
 		return topupTickMsg{}
 	})
 }
@@ -210,7 +222,7 @@ func (t *topupScreen) updateForm(msg tea.KeyMsg) (*topupScreen, tea.Cmd) {
 				t.errMsg = "Jumlah tidak valid"
 				return t, nil
 			}
-			if amountSen < 10000 { // Minimum Rp 100
+			if amountSen < DefaultTUIMinAmountSen {
 				t.errMsg = "Minimal top-up Rp 100"
 				return t, nil
 			}
@@ -462,9 +474,9 @@ func (t *topupScreen) renderVADisplay() string {
 	countdownColor := colorSuccess
 	if strings.HasPrefix(remaining, "00:") {
 		m := remaining[3:5]
-		if m < "10" {
+		if m < CountdownCriticalMinutes {
 			countdownColor = colorError
-		} else if m < "30" {
+		} else if m < CountdownUrgentMinutes {
 			countdownColor = colorSenpai
 		}
 	}

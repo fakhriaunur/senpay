@@ -175,7 +175,7 @@ func (b *BudgetWithAlert) computeAlert() {
 		b.Exceeded = true
 		b.WarningMsg = fmt.Sprintf("Anggaran %s sudah habis (%.0f%%)", b.Category, pct)
 		b.Alert = true
-	} else if pct >= 80.0 {
+	} else if pct >= types.BudgetAlertPercent {
 		b.Alert = true
 		b.WarningMsg = fmt.Sprintf("Anggaran %s tersisa %.0f%% lagi", b.Category, 100-pct)
 	}

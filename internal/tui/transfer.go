@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"senpay/internal/types"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -112,9 +114,12 @@ func transferCmd(token, idempotencyKey, toPhone string, amountSen int64) tea.Cmd
 	}
 }
 
+// TransferAutoReturnDelay is the delay before auto-returning after a successful transfer.
+const TransferAutoReturnDelay = 3 * time.Second
+
 // returnTick creates a tick for auto-return after transfer success.
 func transferReturnTickCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(TransferAutoReturnDelay, func(t time.Time) tea.Msg {
 		return transferReturnTick{}
 	})
 }
@@ -194,11 +199,11 @@ func (t *transferScreen) updateForm(msg tea.KeyMsg) (*transferScreen, tea.Cmd) {
 				return t, nil
 			}
 			cleanPhone := strings.TrimPrefix(phone, "+")
-			if !strings.HasPrefix(cleanPhone, "08") && !strings.HasPrefix(cleanPhone, "62") {
+			if !strings.HasPrefix(cleanPhone, types.PhonePrefix08) && !strings.HasPrefix(cleanPhone, types.PhonePrefix62) {
 				t.errMsg = "Format nomor HP tidak valid"
 				return t, nil
 			}
-			if len(cleanPhone) < 10 || len(cleanPhone) > 15 {
+			if len(cleanPhone) < types.PhoneMinLength || len(cleanPhone) > TUIPhoneMaxLength {
 				t.errMsg = "Format nomor HP tidak valid"
 				return t, nil
 			}

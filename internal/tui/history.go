@@ -60,7 +60,7 @@ type viewDetailMsg struct {
 // loadPageCmd fetches a page of transactions.
 func loadPageCmd(token, cursor string) tea.Cmd {
 	return func() tea.Msg {
-		result, err := GetTransactions(token, cursor, 20)
+		result, err := GetTransactions(token, cursor, types.PageDefaultLimit)
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") {

@@ -86,7 +86,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cursor := r.URL.Query().Get("cursor")
-	limit := 20 // default
+	limit := types.PageDefaultLimit
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
 			limit = parsed
@@ -94,8 +94,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enforce max limit.
-	if limit > 100 {
-		limit = 100
+	if limit > types.PageMaxLimit {
+		limit = types.PageMaxLimit
 	}
 
 	txs, nextCursor, err := h.txLogStore.QueryByUserID(r.Context(), userID, cursor, limit)

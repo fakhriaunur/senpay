@@ -26,6 +26,9 @@ type SnapAdapter struct {
 	httpClient   *http.Client
 }
 
+// DefaultBankHTTPTimeout is the default timeout for bank adapter HTTP requests.
+const DefaultBankHTTPTimeout = 30 * time.Second
+
 // NewSnapAdapter creates a new SNAP adapter.
 // The baseURL points to the mock bank server base path.
 func NewSnapAdapter(baseURL, clientSecret, partnerID, channelID string) *SnapAdapter {
@@ -35,7 +38,7 @@ func NewSnapAdapter(baseURL, clientSecret, partnerID, channelID string) *SnapAda
 		partnerID:    partnerID,
 		channelID:    channelID,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: DefaultBankHTTPTimeout,
 		},
 	}
 }

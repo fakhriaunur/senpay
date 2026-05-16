@@ -181,7 +181,7 @@ func (w *withdrawScreen) updateForm(msg tea.KeyMsg) (*withdrawScreen, tea.Cmd) {
 				w.errMsg = "Jumlah tidak valid"
 				return w, nil
 			}
-			if amountSen < 10000 { // Minimum Rp 100
+			if amountSen < DefaultTUIMinAmountSen {
 				w.errMsg = "Minimal penarikan Rp 100"
 				return w, nil
 			}

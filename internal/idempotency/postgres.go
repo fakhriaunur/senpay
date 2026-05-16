@@ -74,8 +74,11 @@ func (s *PostgresIdempotencyStore) UpdateStatus(ctx context.Context, key string,
 	return nil
 }
 
+// pgUniqueViolation is the PostgreSQL error code for unique constraint violations.
+const pgUniqueViolation = "23505"
+
 // isUniqueViolation checks if a PostgreSQL error is a unique constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation
 }

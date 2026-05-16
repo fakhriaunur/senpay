@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 
+	"senpay/internal/types"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -129,11 +131,11 @@ func (l *loginScreen) Update(msg tea.Msg) (*loginScreen, tea.Cmd) {
 
 				// Basic phone validation.
 				cleanPhone := strings.TrimPrefix(phone, "+")
-				if !strings.HasPrefix(cleanPhone, "08") && !strings.HasPrefix(cleanPhone, "62") {
+				if !strings.HasPrefix(cleanPhone, types.PhonePrefix08) && !strings.HasPrefix(cleanPhone, types.PhonePrefix62) {
 					l.errMsg = "Format nomor HP tidak valid"
 					return l, nil
 				}
-				if len(cleanPhone) < 10 || len(cleanPhone) > 15 {
+				if len(cleanPhone) < types.PhoneMinLength || len(cleanPhone) > TUIPhoneMaxLength {
 					l.errMsg = "Format nomor HP tidak valid"
 					return l, nil
 				}

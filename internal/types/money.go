@@ -16,7 +16,7 @@ func (m Money) Sen() int64 {
 
 // IDR returns the amount in IDR (rounded down, since sen is the base unit).
 func (m Money) IDR() int64 {
-	return int64(m) / 100
+	return int64(m) / SenPerIDR
 }
 
 const (

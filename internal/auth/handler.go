@@ -15,6 +15,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// DefaultTokenCleanupInterval is how often the token store cleans up expired entries.
+const DefaultTokenCleanupInterval = 1 * time.Hour
+
 // Handler implements HTTP handlers for auth-related endpoints.
 //
 // Fields:
@@ -37,7 +40,7 @@ func NewHandler(pool *pgxpool.Pool, store UserRepository, jwtSecret string) *Han
 		pool:       pool,
 		store:      store,
 		jwtSecret:  jwtSecret,
-		tokenStore: NewTokenStore(1 * time.Hour),
+		tokenStore: NewTokenStore(DefaultTokenCleanupInterval),
 	}
 }
 
@@ -124,8 +127,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	// Normalize phone: strip leading + if present, ensure starts with 08 or 62.
 	phone := strings.TrimPrefix(req.Phone, "+")
 
-	// Validate PIN minimum length (4 digits).
-	if len(req.PIN) < 4 {
+	// Validate PIN minimum length.
+	if len(req.PIN) < types.PINMinLength {
 		writeJSONError(w, types.DomainError{
 			Code:       types.ErrCodeInvalidFormat,
 			Message:    "PIN minimal 4 digit",
@@ -429,5 +432,5 @@ func isDuplicatePhoneError(err error) bool {
 	errStr := err.Error()
 	return strings.Contains(errStr, "duplicate key") ||
 		strings.Contains(errStr, "UNIQUE") ||
-		strings.Contains(errStr, "23505") // PostgreSQL unique violation code
+		strings.Contains(errStr, types.SQLUniqueViolation)
 }

@@ -58,10 +58,10 @@ func (s *PostgresTxLogStore) Append(ctx context.Context, tx types.Transaction) e
 // QueryByUserID retrieves transaction log entries for a user with cursor-based pagination.
 func (s *PostgresTxLogStore) QueryByUserID(ctx context.Context, userID uuid.UUID, cursor string, limit int) ([]types.Transaction, string, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = types.PageDefaultLimit
 	}
-	if limit > 100 {
-		limit = 100
+	if limit > types.PageMaxLimit {
+		limit = types.PageMaxLimit
 	}
 
 	var rows pgx.Rows
@@ -182,5 +182,5 @@ func (s *PostgresTxLogStore) FindByID(ctx context.Context, id uuid.UUID) (types.
 // isUniqueViolation checks if a PostgreSQL error is a unique constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	return errors.As(err, &pgErr) && pgErr.Code == types.SQLUniqueViolation
 }
