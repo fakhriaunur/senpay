@@ -183,5 +183,25 @@
   "settings_lang_en": "English",
   "settings_save": "Simpan",
   "settings_help": "Tab: pindah • Enter: simpan • Esc: kembali",
-  "label_setting": "Pengaturan"
+  "label_setting": "Pengaturan",
+
+  "err_INVALID_AMOUNT": "Jumlah tidak valid",
+  "err_AMOUNT_BELOW_MINIMUM": "Jumlah minimal transfer Rp 10",
+  "err_INSUFFICIENT_BALANCE": "Saldo tidak cukup",
+  "err_SELF_TRANSFER": "Tidak bisa transfer ke diri sendiri",
+  "err_USER_NOT_FOUND": "Pengguna tidak ditemukan",
+  "err_PHONE_ALREADY_REGISTERED": "Nomor telepon sudah terdaftar",
+  "err_INVALID_PIN": "PIN salah",
+  "err_UNAUTHORIZED": "Sesi habis, silakan login ulang",
+  "err_EXCEEDS_TRANSACTION_LIMIT": "Melebihi batas transaksi",
+  "err_REQUEST_IN_FLIGHT": "Permintaan sedang diproses",
+  "err_SERIALIZATION_CONFLICT": "Silakan coba lagi",
+  "err_FEATURE_NOT_AVAILABLE": "Fitur belum tersedia",
+  "err_INTERNAL_ERROR": "Terjadi kesalahan internal",
+  "err_INVALID_PROMO_CODE": "Kode promo tidak valid",
+  "err_PROMO_CODE_EXPIRED": "Kode promo sudah kadaluarsa",
+  "err_DUPLICATE_TRANSACTION": "Transaksi duplikat",
+  "err_RATE_LIMITED": "Terlalu banyak permintaan, silakan coba lagi",
+  "err_MISSING_FIELD": "Field %s wajib diisi",
+  "err_INVALID_FORMAT": "Format %s tidak valid: %s"
 }

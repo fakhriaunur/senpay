@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	"senpay/internal/auth"
+	"senpay/internal/i18n"
 	"senpay/internal/types"
 
 	"github.com/google/uuid"
@@ -54,14 +55,14 @@ type BalanceResponse struct {
 func (h *Handler) Balance(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	balance, version, err := h.projectBalance(r.Context(), userID)
 	if err != nil {
 		slog.Error("failed to project balance", "user_id", userID, "error", err)
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -99,14 +100,24 @@ func (h *Handler) projectBalance(ctx context.Context, userID uuid.UUID) (int64, 
 	return balance, version, nil
 }
 
-// writeJSONError writes a DomainError as a JSON error response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

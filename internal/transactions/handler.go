@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"senpay/internal/auth"
+	"senpay/internal/i18n"
 	"senpay/internal/ledger"
 	"senpay/internal/types"
 
@@ -81,7 +82,7 @@ type ListResponse struct {
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
@@ -101,7 +102,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	txs, nextCursor, err := h.txLogStore.QueryByUserID(r.Context(), userID, cursor, limit)
 	if err != nil {
 		slog.Error("failed to query transactions", "user_id", userID, "error", err)
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -139,7 +140,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
@@ -147,7 +148,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	txID, err := uuid.Parse(idStr)
 	if err != nil {
-		writeJSONError(w, types.DomainError{
+		writeJSONError(w, r, types.DomainError{
 			Code:       types.ErrCodeInvalidFormat,
 			Message:    "ID transaksi tidak valid",
 			HTTPStatus: 400,
@@ -159,17 +160,17 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check if it's a USER_NOT_FOUND DomainError (tx not found).
 		if isDomainError(err) {
-			writeJSONError(w, types.ErrUserNotFound)
+			writeJSONError(w, r, types.ErrUserNotFound)
 			return
 		}
 		slog.Error("failed to find transaction", "tx_id", txID, "error", err)
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	// Verify the transaction belongs to the authenticated user.
 	if !isUserParticipant(tx, userID) {
-		writeJSONError(w, types.ErrUserNotFound)
+		writeJSONError(w, r, types.ErrUserNotFound)
 		return
 	}
 
@@ -250,14 +251,24 @@ func isDomainError(err error) bool {
 	return ok
 }
 
-// writeJSONError writes a DomainError as a JSON error response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

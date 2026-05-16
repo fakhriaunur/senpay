@@ -7,9 +7,10 @@ import (
 // DomainError represents a typed application error with Indonesian error taxonomy.
 // Implements the error interface for use in Go error handling.
 type DomainError struct {
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	HTTPStatus int    `json:"-"`
+	Code       string        `json:"code"`
+	Message    string        `json:"message"`
+	HTTPStatus int           `json:"-"`
+	Args       []interface{} `json:"-"` // Format arguments for i18n message resolution
 }
 
 // Error implements the error interface.
@@ -138,6 +139,7 @@ func NewMissingFieldError(field string) DomainError {
 		Code:       ErrCodeMissingField,
 		Message:    fmt.Sprintf("Field %s wajib diisi", field),
 		HTTPStatus: 400,
+		Args:       []interface{}{field},
 	}
 }
 
@@ -147,5 +149,6 @@ func NewInvalidFormatError(field, detail string) DomainError {
 		Code:       ErrCodeInvalidFormat,
 		Message:    fmt.Sprintf("Format %s tidak valid: %s", field, detail),
 		HTTPStatus: 400,
+		Args:       []interface{}{field, detail},
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"senpay/internal/i18n"
 	"senpay/internal/types"
 )
 
@@ -48,37 +49,47 @@ func NewWebhookHandler(svc *Service) *WebhookHandler {
 func (h *WebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	var callback BankCallback
 	if err := json.Unmarshal(body, &callback); err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	if callback.VANumber == "" {
-		writeJSONError(w, types.NewMissingFieldError("va_number"))
+		writeJSONError(w, r, types.NewMissingFieldError("va_number"))
 		return
 	}
 
 	if domainErr := h.svc.ProcessWebhook(r.Context(), &callback); domainErr != nil {
-		writeJSONError(w, *domainErr)
+		writeJSONError(w, r, *domainErr)
 		return
 	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]string{"status": "processed"})
 }
 
-// writeJSONError writes a DomainError as a JSON response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

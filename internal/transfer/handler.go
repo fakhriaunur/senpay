@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"senpay/internal/auth"
+	"senpay/internal/i18n"
 	"senpay/internal/types"
 )
 
@@ -32,34 +33,34 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) Transfer(w http.ResponseWriter, r *http.Request) {
 	senderID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	var req TransferRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.IdempotencyKey == "" {
-		writeJSONError(w, types.NewMissingFieldError("idempotency_key"))
+		writeJSONError(w, r, types.NewMissingFieldError("idempotency_key"))
 		return
 	}
 
 	if req.ToPhone == "" {
-		writeJSONError(w, types.NewMissingFieldError("to_phone"))
+		writeJSONError(w, r, types.NewMissingFieldError("to_phone"))
 		return
 	}
 
 	if req.AmountSen <= 0 {
-		writeJSONError(w, types.ErrInvalidAmount)
+		writeJSONError(w, r, types.ErrInvalidAmount)
 		return
 	}
 
 	result, domainErr := h.svc.Transfer(r.Context(), senderID, req)
 	if domainErr != nil {
-		writeJSONError(w, *domainErr)
+		writeJSONError(w, r, *domainErr)
 		return
 	}
 
@@ -73,14 +74,24 @@ func (h *Handler) Transfer(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeJSONError writes a DomainError as a JSON error response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

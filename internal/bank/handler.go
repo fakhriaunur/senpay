@@ -38,23 +38,23 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) Topup(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	var req TopupHTTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.IdempotencyKey == "" {
-		writeJSONError(w, types.NewMissingFieldError("idempotency_key"))
+		writeJSONError(w, r, types.NewMissingFieldError("idempotency_key"))
 		return
 	}
 
 	if req.AmountSen <= 0 {
-		writeJSONError(w, types.ErrInvalidAmount)
+		writeJSONError(w, r, types.ErrInvalidAmount)
 		return
 	}
 
@@ -62,10 +62,10 @@ func (h *Handler) Topup(w http.ResponseWriter, r *http.Request) {
 	if domainErr != nil {
 		// Special case: in-flight returns 202.
 		if domainErr.Code == types.ErrCodeRequestInFlight {
-			writeJSONError(w, *domainErr)
+			writeJSONError(w, r, *domainErr)
 			return
 		}
-		writeJSONError(w, *domainErr)
+		writeJSONError(w, r, *domainErr)
 		return
 	}
 
@@ -92,28 +92,28 @@ func (h *Handler) Topup(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	var req WithdrawHTTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.IdempotencyKey == "" {
-		writeJSONError(w, types.NewMissingFieldError("idempotency_key"))
+		writeJSONError(w, r, types.NewMissingFieldError("idempotency_key"))
 		return
 	}
 
 	if req.AmountSen <= 0 {
-		writeJSONError(w, types.ErrInvalidAmount)
+		writeJSONError(w, r, types.ErrInvalidAmount)
 		return
 	}
 
 	if req.BankAccount == "" {
-		writeJSONError(w, types.NewMissingFieldError("bank_account"))
+		writeJSONError(w, r, types.NewMissingFieldError("bank_account"))
 		return
 	}
 
@@ -121,10 +121,10 @@ func (h *Handler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	if domainErr != nil {
 		// Special case: in-flight returns 202.
 		if domainErr.Code == types.ErrCodeRequestInFlight {
-			writeJSONError(w, *domainErr)
+			writeJSONError(w, r, *domainErr)
 			return
 		}
-		writeJSONError(w, *domainErr)
+		writeJSONError(w, r, *domainErr)
 		return
 	}
 

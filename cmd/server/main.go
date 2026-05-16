@@ -219,6 +219,7 @@ func main() {
 	// Apply global gateway middleware stack (outermost to innermost).
 	handler := gateway.Recovery(mux)
 	handler = gateway.RequestID(handler)
+	handler = gateway.AcceptLanguage(handler)
 	handler = gateway.Logging(handler)
 	handler = gateway.RateLimit(rateLimiter)(handler)
 	handler = metrics.Middleware(handler)

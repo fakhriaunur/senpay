@@ -9,9 +9,11 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"senpay/internal/auth"
+	"senpay/internal/i18n"
 	"senpay/internal/types"
 
 	"github.com/google/uuid"
@@ -74,7 +76,7 @@ func Recovery(next http.Handler) http.Handler {
 					"method", r.Method,
 					"path", r.URL.Path,
 				)
-				writeJSONError(w, types.ErrInternal)
+				writeJSONError(w, r, types.ErrInternal)
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -96,6 +98,54 @@ func RequestID(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// AcceptLanguage injects the parsed Accept-Language header into the request context.
+// Parses the first language tag from the Accept-Language header and normalizes it.
+// Supported languages: "id" (Indonesian, default) and "en" (English).
+// Unknown languages fall back to "id".
+// If the header is absent, defaults to "id".
+func AcceptLanguage(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := r.Header.Get("Accept-Language")
+		lang := parseAcceptLanguage(raw)
+		if lang == "" {
+			lang = i18n.DefaultLang
+		}
+		ctx := types.WithAcceptLanguage(r.Context(), lang)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// parseAcceptLanguage extracts the first language tag from an Accept-Language header.
+// Handles quality values (q=), multiple languages, and subtags (en-US -> en).
+// Returns the two-letter language code, or empty string if unparseable.
+func parseAcceptLanguage(header string) string {
+	if header == "" {
+		return ""
+	}
+
+	// Split on comma and take the first entry.
+	part := strings.Split(header, ",")[0]
+	// Remove quality value if present.
+	part = strings.Split(part, ";")[0]
+	// Trim whitespace.
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return ""
+	}
+
+	// Extract the primary language tag (before any hyphen).
+	lang := strings.Split(part, "-")[0]
+	lang = strings.ToLower(strings.TrimSpace(lang))
+
+	// Validate supported languages.
+	switch lang {
+	case "id", "en":
+		return lang
+	default:
+		return "" // Will fall back to default
+	}
 }
 
 // Logging logs request method, path, status, duration, and request_id
@@ -147,10 +197,20 @@ func RateLimit(rl *RateLimiter) func(http.Handler) http.Handler {
 				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", retryAfter.Seconds()))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
+
+				lang := i18n.DefaultLang
+				if l := types.GetAcceptLanguage(r.Context()); l != "" {
+					lang = l
+				}
+				msg := i18n.ResolveErrorMessage(types.DomainError{
+					Code:    "RATE_LIMITED",
+					Message: "Terlalu banyak permintaan, silakan coba lagi",
+				}, lang)
+
 				if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 					"error": map[string]string{
 						"code":    "RATE_LIMITED",
-						"message": "Terlalu banyak permintaan, silakan coba lagi",
+						"message": msg,
 					},
 				}); encodeErr != nil {
 					slog.Error("failed to encode rate-limit response", "error", encodeErr)
@@ -232,7 +292,7 @@ func BILimit(store UserStore) func(http.Handler) http.Handler {
 
 			// Enforce limit.
 			if amountSen > limit {
-				writeJSONError(w, types.ErrExceedsTransactionLimit)
+				writeJSONError(w, r, types.ErrExceedsTransactionLimit)
 				return
 			}
 
@@ -241,14 +301,24 @@ func BILimit(store UserStore) func(http.Handler) http.Handler {
 	}
 }
 
-// writeJSONError writes a DomainError as a JSON response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

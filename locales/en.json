@@ -183,5 +183,25 @@
   "settings_lang_en": "English",
   "settings_save": "Save",
   "settings_help": "Tab: move • Enter: save • Esc: back",
-  "label_setting": "Settings"
+  "label_setting": "Settings",
+
+  "err_INVALID_AMOUNT": "Invalid amount",
+  "err_AMOUNT_BELOW_MINIMUM": "Minimum transfer amount is Rp 10",
+  "err_INSUFFICIENT_BALANCE": "Insufficient balance",
+  "err_SELF_TRANSFER": "Cannot transfer to yourself",
+  "err_USER_NOT_FOUND": "User not found",
+  "err_PHONE_ALREADY_REGISTERED": "Phone number is already registered",
+  "err_INVALID_PIN": "Invalid PIN",
+  "err_UNAUTHORIZED": "Session expired, please login again",
+  "err_EXCEEDS_TRANSACTION_LIMIT": "Exceeds transaction limit",
+  "err_REQUEST_IN_FLIGHT": "Request is being processed",
+  "err_SERIALIZATION_CONFLICT": "Please try again",
+  "err_FEATURE_NOT_AVAILABLE": "Feature not available",
+  "err_INTERNAL_ERROR": "An internal error occurred",
+  "err_INVALID_PROMO_CODE": "Invalid promo code",
+  "err_PROMO_CODE_EXPIRED": "Promo code has expired",
+  "err_DUPLICATE_TRANSACTION": "Duplicate transaction",
+  "err_RATE_LIMITED": "Too many requests, please try again",
+  "err_MISSING_FIELD": "%s is required",
+  "err_INVALID_FORMAT": "Invalid %s: %s"
 }

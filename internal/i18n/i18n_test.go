@@ -2,6 +2,8 @@ package i18n
 
 import (
 	"testing"
+
+	"senpay/internal/types"
 )
 
 func TestT_ReturnsTranslation(t *testing.T) {
@@ -93,5 +95,112 @@ func TestLoadLocale_InvalidJSON(t *testing.T) {
 func TestT_DefaultLangConstant(t *testing.T) {
 	if DefaultLang != "id" {
 		t.Errorf("DefaultLang = %q, want %q", DefaultLang, "id")
+	}
+}
+
+func TestResolveErrorMessage_StaticError(t *testing.T) {
+	_ = LoadLocale("id", []byte(`{"err_INVALID_PIN": "PIN salah"}`))
+	_ = LoadLocale("en", []byte(`{"err_INVALID_PIN": "Invalid PIN"}`))
+
+	tests := []struct {
+		name     string
+		code     string
+		message  string
+		lang     string
+		expected string
+	}{
+		{
+			name:     "indonesian default",
+			code:     "INVALID_PIN",
+			message:  "PIN salah",
+			lang:     "id",
+			expected: "PIN salah",
+		},
+		{
+			name:     "english translation",
+			code:     "INVALID_PIN",
+			message:  "PIN salah",
+			lang:     "en",
+			expected: "Invalid PIN",
+		},
+		{
+			name:     "unknown lang falls back to indonesian",
+			code:     "INVALID_PIN",
+			message:  "PIN salah",
+			lang:     "fr",
+			expected: "PIN salah",
+		},
+		{
+			name:     "missing code falls back to default message",
+			code:     "UNKNOWN_CODE",
+			message:  "Default message",
+			lang:     "id",
+			expected: "Default message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := types.DomainError{
+				Code:    tt.code,
+				Message: tt.message,
+			}
+			got := ResolveErrorMessage(err, tt.lang)
+			if got != tt.expected {
+				t.Errorf("ResolveErrorMessage(%q, %q) = %q, want %q", tt.code, tt.lang, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestResolveErrorMessage_FormatString(t *testing.T) {
+	_ = LoadLocale("id", []byte(`{"err_MISSING_FIELD": "Field %s wajib diisi"}`))
+	_ = LoadLocale("en", []byte(`{"err_MISSING_FIELD": "%s is required"}`))
+
+	tests := []struct {
+		name     string
+		code     string
+		message  string
+		args     []interface{}
+		lang     string
+		expected string
+	}{
+		{
+			name:     "indonesian with arg",
+			code:     "MISSING_FIELD",
+			message:  "Field pin wajib diisi",
+			args:     []interface{}{"pin"},
+			lang:     "id",
+			expected: "Field pin wajib diisi",
+		},
+		{
+			name:     "english with arg",
+			code:     "MISSING_FIELD",
+			message:  "Field pin wajib diisi",
+			args:     []interface{}{"pin"},
+			lang:     "en",
+			expected: "pin is required",
+		},
+		{
+			name:     "no args falls back to default message",
+			code:     "MISSING_FIELD",
+			message:  "Field pin wajib diisi",
+			lang:     "id",
+			expected: "Field pin wajib diisi",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := types.DomainError{
+				Code:    tt.code,
+				Message: tt.message,
+				Args:    tt.args,
+			}
+			got := ResolveErrorMessage(err, tt.lang)
+			if got != tt.expected {
+				t.Errorf("ResolveErrorMessage(%q, %q) = %q, want %q", tt.code, tt.lang, got, tt.expected)
+			}
+		})
 	}
 }

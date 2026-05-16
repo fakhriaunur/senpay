@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"senpay/internal/i18n"
 	"senpay/internal/types"
 
 	"github.com/google/uuid"
@@ -42,30 +43,30 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				writeJSONError(w, types.ErrUnauthorized)
+				writeJSONError(w, r, types.ErrUnauthorized)
 				return
 			}
 
 			if !strings.HasPrefix(authHeader, "Bearer ") {
-				writeJSONError(w, types.ErrUnauthorized)
+				writeJSONError(w, r, types.ErrUnauthorized)
 				return
 			}
 
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			if tokenString == "" {
-				writeJSONError(w, types.ErrUnauthorized)
+				writeJSONError(w, r, types.ErrUnauthorized)
 				return
 			}
 
 			claims, err := ValidateToken(tokenString, secret)
 			if err != nil {
-				writeJSONError(w, types.ErrUnauthorized)
+				writeJSONError(w, r, types.ErrUnauthorized)
 				return
 			}
 
 			userID, err := uuid.Parse(claims.Subject)
 			if err != nil {
-				writeJSONError(w, types.ErrUnauthorized)
+				writeJSONError(w, r, types.ErrUnauthorized)
 				return
 			}
 
@@ -75,14 +76,24 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 	}
 }
 
-// writeJSONError writes a DomainError as a JSON response.
-func writeJSONError(w http.ResponseWriter, err types.DomainError) {
+// writeJSONError writes a DomainError as a JSON response,
+// with the message dynamically resolved based on the Accept-Language
+// in the request context.
+// If r is nil, uses the default Indonesian message.
+func writeJSONError(w http.ResponseWriter, r *http.Request, err types.DomainError) {
+	lang := i18n.DefaultLang
+	if r != nil {
+		if l := types.GetAcceptLanguage(r.Context()); l != "" {
+			lang = l
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": map[string]string{
 			"code":    err.Code,
-			"message": err.Message,
+			"message": i18n.ResolveErrorMessage(err, lang),
 		},
 	}); encodeErr != nil {
 		slog.Error("failed to encode error response", "error", encodeErr)

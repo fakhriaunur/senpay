@@ -110,17 +110,17 @@ type balanceResponse struct {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	// Validate phone
 	if req.Phone == "" {
-		writeJSONError(w, types.NewMissingFieldError("phone"))
+		writeJSONError(w, r, types.NewMissingFieldError("phone"))
 		return
 	}
 	if err := ValidatePhone(req.Phone); err != nil {
-		writeJSONError(w, *err)
+		writeJSONError(w, r, *err)
 		return
 	}
 
@@ -129,7 +129,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Validate PIN minimum length.
 	if len(req.PIN) < types.PINMinLength {
-		writeJSONError(w, types.DomainError{
+		writeJSONError(w, r, types.DomainError{
 			Code:       types.ErrCodeInvalidFormat,
 			Message:    "PIN minimal 4 digit",
 			HTTPStatus: 400,
@@ -147,16 +147,16 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.Insert(r.Context(), user); err != nil {
 		// Check for unique constraint violation (duplicate phone).
 		if isDuplicatePhoneError(err) {
-			writeJSONError(w, types.ErrPhoneAlreadyRegistered)
+			writeJSONError(w, r, types.ErrPhoneAlreadyRegistered)
 			return
 		}
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	// Seed zero-balance snapshot.
 	if err := h.seedBalanceSnapshot(r.Context(), user.ID); err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -176,16 +176,16 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.Phone == "" {
-		writeJSONError(w, types.NewMissingFieldError("phone"))
+		writeJSONError(w, r, types.NewMissingFieldError("phone"))
 		return
 	}
 	if req.PIN == "" {
-		writeJSONError(w, types.NewMissingFieldError("pin"))
+		writeJSONError(w, r, types.NewMissingFieldError("pin"))
 		return
 	}
 
@@ -196,29 +196,29 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := h.store.FindByPhone(r.Context(), phone)
 	if err != nil {
 		if target := (types.DomainError{}); errors.As(err, &target) && target.Code == types.ErrCodeUserNotFound {
-			writeJSONError(w, target)
+			writeJSONError(w, r, target)
 			return
 		}
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	// Verify PIN.
 	if !VerifyPIN(req.PIN, user.PINHash) {
-		writeJSONError(w, types.ErrInvalidPIN)
+		writeJSONError(w, r, types.ErrInvalidPIN)
 		return
 	}
 
 	// Generate tokens.
 	token, err := GenerateAccessToken(user.ID, h.jwtSecret)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	refreshToken, err := GenerateRefreshToken(user.ID, h.jwtSecret)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -241,31 +241,31 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.RefreshToken == "" {
-		writeJSONError(w, types.NewMissingFieldError("refresh_token"))
+		writeJSONError(w, r, types.NewMissingFieldError("refresh_token"))
 		return
 	}
 
 	// Validate refresh token.
 	claims, err := ValidateToken(req.RefreshToken, h.jwtSecret)
 	if err != nil {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	// Verify it's a refresh token, not an access token.
 	if claims.TokenType != TokenTypeRefresh {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
@@ -273,20 +273,20 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// was already used and marks it as used in one operation, eliminating the
 	// TOCTOU race window between a separate IsUsed()+MarkUsed() pair.
 	if h.tokenStore.MarkUsed(claims.ID) {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	// Issue new tokens.
 	newToken, err := GenerateAccessToken(userID, h.jwtSecret)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
 	newRefreshToken, err := GenerateRefreshToken(userID, h.jwtSecret)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -308,25 +308,25 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	var req kycRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, types.NewMissingFieldError("body"))
+		writeJSONError(w, r, types.NewMissingFieldError("body"))
 		return
 	}
 
 	if req.KYCLevel == "" {
-		writeJSONError(w, types.NewMissingFieldError("kyc_level"))
+		writeJSONError(w, r, types.NewMissingFieldError("kyc_level"))
 		return
 	}
 
 	// Validate KYC level using ParseKYCLevel.
 	level, err := types.ParseKYCLevel(req.KYCLevel)
 	if err != nil {
-		writeJSONError(w, types.DomainError{
+		writeJSONError(w, r, types.DomainError{
 			Code:       types.ErrCodeInvalidFormat,
 			Message:    "Level KYC tidak valid: harus 'basic' atau 'verified'",
 			HTTPStatus: 400,
@@ -336,10 +336,10 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.store.UpdateKYCLevel(r.Context(), userID, level); err != nil {
 		if target := (types.DomainError{}); errors.As(err, &target) && target.Code == types.ErrCodeUserNotFound {
-			writeJSONError(w, target)
+			writeJSONError(w, r, target)
 			return
 		}
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -353,17 +353,17 @@ func (h *Handler) KYC(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	user, err := h.store.FindByID(r.Context(), userID)
 	if err != nil {
 		if target := (types.DomainError{}); errors.As(err, &target) && target.Code == types.ErrCodeUserNotFound {
-			writeJSONError(w, target)
+			writeJSONError(w, r, target)
 			return
 		}
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
@@ -381,13 +381,13 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Balance(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		writeJSONError(w, types.ErrUnauthorized)
+		writeJSONError(w, r, types.ErrUnauthorized)
 		return
 	}
 
 	balance, err := h.getBalance(r.Context(), userID)
 	if err != nil {
-		writeJSONError(w, types.ErrInternal)
+		writeJSONError(w, r, types.ErrInternal)
 		return
 	}
 
