@@ -57,13 +57,28 @@ type UserStore interface {
 	FindByID(ctx context.Context, id uuid.UUID) (types.User, error)
 }
 
+// sagaExecutor defines the interface for executing saga operations with retry
+// and compensation. The real implementation is saga.SagaCoordinator.
+type sagaExecutor interface {
+	Execute(ctx context.Context, op saga.Operation, comp saga.Compensation) error
+}
+
+// idempotencyCache defines the interface for idempotency key operations.
+// The real implementation is idempotency.RedisIdempotencyCache.
+type idempotencyCache interface {
+	Get(ctx context.Context, key string) (string, error)
+	SetIfNotExist(ctx context.Context, key string, status string, ttl time.Duration) (bool, error)
+	Set(ctx context.Context, key string, value string, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+}
+
 // Service handles transfer orchestration with idempotency, saga retry, and compensation.
 type Service struct {
 	pool            *pgxpool.Pool
-	redisCache      *idempotency.RedisIdempotencyCache
+	redisCache      idempotencyCache
 	natsClient      *nats.Client
 	userStore       UserStore
-	sagaCoordinator *saga.SagaCoordinator
+	sagaCoordinator sagaExecutor
 	feeConfig       fee.FeeConfig
 	promoSvc        *fee.PromoService
 }
