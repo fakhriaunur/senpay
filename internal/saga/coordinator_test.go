@@ -244,6 +244,72 @@ func TestSagaCoordinator_Execute_ContextCancelled(t *testing.T) {
 	}
 }
 
+// TestSagaCompensation verifies the full compensation flow for serialization failures.
+//
+// VAL-TRANSFER-015: When PostgreSQL SERIALIZABLE transaction fails with
+// serialization_error (SQLSTATE 40001), saga coordinator retries up to 3 times
+// with exponential backoff. If all 3 retries fail, saga compensates.
+func TestSagaCompensation(t *testing.T) {
+	t.Parallel()
+
+	coordinator := &SagaCoordinator{
+		maxRetries: 3,
+		backoff:    1 * time.Millisecond,
+	}
+
+	var retryCount int
+	var compensated bool
+	var compensateErr error
+
+	err := coordinator.Execute(context.Background(),
+		func(ctx context.Context) error {
+			retryCount++
+			return &pgconn.PgError{Code: types.SQLSerializationError}
+		},
+		func(ctx context.Context, originalErr error) {
+			compensated = true
+			compensateErr = originalErr
+		},
+	)
+
+	// After 3 failed retries, saga must return serialization conflict error.
+	if err == nil {
+		t.Fatal("expected error after retry exhaustion, got nil")
+	}
+	var domainErr *types.DomainError
+	if !errors.As(err, &domainErr) {
+		t.Fatalf("expected DomainError, got %T", err)
+	}
+	if domainErr.Code != types.ErrCodeSerializationConflict {
+		t.Errorf("expected code %q, got %q", types.ErrCodeSerializationConflict, domainErr.Code)
+	}
+	if domainErr.HTTPStatus != 409 {
+		t.Errorf("expected HTTP status 409, got %d", domainErr.HTTPStatus)
+	}
+
+	// Must have attempted 3 retries.
+	if retryCount != DefaultMaxRetries {
+		t.Errorf("expected %d retries, got %d", DefaultMaxRetries, retryCount)
+	}
+
+	// Compensation must have been called.
+	if !compensated {
+		t.Fatal("expected compensation to be called after retry exhaustion")
+	}
+
+	// Compensation must receive the original error.
+	if compensateErr == nil {
+		t.Fatal("expected compensation to receive original error, got nil")
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(compensateErr, &pgErr) {
+		t.Fatalf("expected compensation error to be PgError, got %T", compensateErr)
+	}
+	if pgErr.Code != types.SQLSerializationError {
+		t.Errorf("expected PgError code %q, got %q", types.SQLSerializationError, pgErr.Code)
+	}
+}
+
 func TestIsTransient(t *testing.T) {
 	t.Parallel()
 

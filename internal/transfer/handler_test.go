@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"senpay/internal/auth"
 	"senpay/internal/types"
@@ -170,7 +171,7 @@ func (m *mockRedisCache) Get(_ context.Context, key string) (string, error) {
 	return m.data[key], nil
 }
 
-func (m *mockRedisCache) SetIfNotExist(_ context.Context, key string, status string, _ interface{}) (bool, error) {
+func (m *mockRedisCache) SetIfNotExist(_ context.Context, key string, status string, _ time.Duration) (bool, error) {
 	if _, exists := m.data[key]; exists {
 		return false, nil
 	}
@@ -178,7 +179,7 @@ func (m *mockRedisCache) SetIfNotExist(_ context.Context, key string, status str
 	return true, nil
 }
 
-func (m *mockRedisCache) Set(_ context.Context, key string, value string, _ interface{}) error {
+func (m *mockRedisCache) Set(_ context.Context, key string, value string, _ time.Duration) error {
 	m.data[key] = value
 	return nil
 }
