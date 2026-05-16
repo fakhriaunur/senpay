@@ -361,3 +361,128 @@ func (qs *QueryStore) GetTrend(ctx context.Context, userID uuid.UUID, months int
 
 	return trend, nil
 }
+
+// ────────────────────────────────────────────────────────────────
+// Nudge Data Queries
+// ────────────────────────────────────────────────────────────────
+
+// GetRecentSpending returns individual committed transfer amounts in the last N hours.
+func (qs *QueryStore) GetRecentSpending(ctx context.Context, userID uuid.UUID, hours int) ([]int64, error) {
+	const query = `
+		SELECT amount_sen
+		FROM tx_log
+		WHERE sender_id = $1
+			AND status = 'committed'
+			AND tx_type = 'transfer'
+			AND created_at >= $2
+		ORDER BY created_at DESC
+	`
+
+	since := time.Now().UTC().Add(-time.Duration(hours) * time.Hour)
+	rows, err := qs.pool.Query(ctx, query, userID, since)
+	if err != nil {
+		return nil, fmt.Errorf("query recent spending: %w", err)
+	}
+	defer rows.Close()
+
+	var amounts []int64
+	for rows.Next() {
+		var amt int64
+		if err := rows.Scan(&amt); err != nil {
+			return nil, fmt.Errorf("scan amount: %w", err)
+		}
+		amounts = append(amounts, amt)
+	}
+	return amounts, nil
+}
+
+// GetDailyTotals returns daily spending totals for the last N days.
+// Each element is the total spending for one day in sen, ordered oldest to newest.
+func (qs *QueryStore) GetDailyTotals(ctx context.Context, userID uuid.UUID, days int) ([]int64, error) {
+	const query = `
+		SELECT COALESCE(SUM(amount_sen), 0)
+		FROM tx_log
+		WHERE sender_id = $1
+			AND status = 'committed'
+			AND tx_type = 'transfer'
+			AND created_at >= $2
+			AND created_at < DATE_TRUNC('day', NOW()) + INTERVAL '1 day'
+		GROUP BY DATE(created_at)
+		ORDER BY DATE(created_at) ASC
+	`
+
+	since := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
+	rows, err := qs.pool.Query(ctx, query, userID, since)
+	if err != nil {
+		return nil, fmt.Errorf("query daily totals: %w", err)
+	}
+	defer rows.Close()
+
+	var totals []int64
+	for rows.Next() {
+		var total int64
+		if err := rows.Scan(&total); err != nil {
+			return nil, fmt.Errorf("scan daily total: %w", err)
+		}
+		totals = append(totals, total)
+	}
+	return totals, nil
+}
+
+// GetCategoryTransactions returns all committed transfer amounts for the current month.
+func (qs *QueryStore) GetCategoryTransactions(ctx context.Context, userID uuid.UUID) ([]int64, error) {
+	now := time.Now().UTC()
+	month := int(now.Month())
+	year := now.Year()
+
+	const query = `
+		SELECT amount_sen
+		FROM tx_log
+		WHERE sender_id = $1
+			AND status = 'committed'
+			AND tx_type = 'transfer'
+			AND EXTRACT(MONTH FROM created_at) = $2
+			AND EXTRACT(YEAR FROM created_at) = $3
+		ORDER BY created_at ASC
+	`
+
+	rows, err := qs.pool.Query(ctx, query, userID, month, year)
+	if err != nil {
+		return nil, fmt.Errorf("query category transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var amounts []int64
+	for rows.Next() {
+		var amt int64
+		if err := rows.Scan(&amt); err != nil {
+			return nil, fmt.Errorf("scan amount: %w", err)
+		}
+		amounts = append(amounts, amt)
+	}
+	return amounts, nil
+}
+
+// GetMonthlySpending returns total spending in the current month so far.
+func (qs *QueryStore) GetMonthlySpending(ctx context.Context, userID uuid.UUID) (int64, error) {
+	now := time.Now().UTC()
+	month := int(now.Month())
+	year := now.Year()
+
+	const query = `
+		SELECT COALESCE(SUM(amount_sen), 0)
+		FROM tx_log
+		WHERE sender_id = $1
+			AND status = 'committed'
+			AND tx_type = 'transfer'
+			AND EXTRACT(MONTH FROM created_at) = $2
+			AND EXTRACT(YEAR FROM created_at) = $3
+	`
+
+	var total int64
+	err := qs.pool.QueryRow(ctx, query, userID, month, year).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("query monthly spending: %w", err)
+	}
+	return total, nil
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"senpay/internal/auth"
 	"senpay/internal/i18n"
@@ -160,9 +161,14 @@ func (h *Handler) ListBudgets(w http.ResponseWriter, r *http.Request) {
 //
 // Requires authentication.
 // When SENPAI_FULL_ENABLED is false (default), returns 501 Not Implemented.
-// When enabled, this would return personalized financial nudges.
+// When enabled, queries transaction data and returns personalised financial nudges
+// from the nudge rules engine (EvaluateAll).
+//
+// Response format:
+//
+//	{"data": [{"type":"velocity","severity":"warning","message":"...","action":"...","dismissible":true}, ...]}
 func (h *Handler) Nudge(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.UserIDFromContext(r.Context())
+	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		writeJSONError(w, r, types.ErrUnauthorized)
 		return
@@ -173,9 +179,68 @@ func (h *Handler) Nudge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// When full nudge engine is enabled, this would return nudges.
-	// For now, return 501 regardless even if enabled (no implementation yet).
-	writeJSONError(w, r, types.ErrFeatureNotAvailable)
+	// Gather data for the nudge engine.
+	recentSpending, err := h.queryStore.GetRecentSpending(r.Context(), userID, 24)
+	if err != nil {
+		slog.Error("failed to get recent spending", "user_id", userID, "error", err)
+		writeJSONError(w, r, types.ErrInternal)
+		return
+	}
+
+	dailyHistory, err := h.queryStore.GetDailyTotals(r.Context(), userID, 7)
+	if err != nil {
+		slog.Error("failed to get daily history", "user_id", userID, "error", err)
+		writeJSONError(w, r, types.ErrInternal)
+		return
+	}
+
+	// Daily averages for trend detection: use daily totals as averages.
+	// Convert int64 daily totals to float64 for the trend detection function.
+	var dailyAvg []float64
+	for _, d := range dailyHistory {
+		dailyAvg = append(dailyAvg, float64(d))
+	}
+
+	categoryTx, err := h.queryStore.GetCategoryTransactions(r.Context(), userID)
+	if err != nil {
+		slog.Error("failed to get category transactions", "user_id", userID, "error", err)
+		writeJSONError(w, r, types.ErrInternal)
+		return
+	}
+
+	// Get budgets for exhaustion projection.
+	budgets, err := h.budgetStore.ListCurrentWithSpending(r.Context(), userID)
+	if err != nil {
+		slog.Error("failed to list budgets for nudge", "user_id", userID, "error", err)
+		writeJSONError(w, r, types.ErrInternal)
+		return
+	}
+
+	// Aggregate budget totals for exhaustion projection.
+	var totalBudgetCap, totalSpent int64
+	for _, b := range budgets {
+		totalBudgetCap += b.LimitSen
+		totalSpent += b.SpentSen
+	}
+
+	// Compute days remaining in the current month.
+	now := time.Now().UTC()
+	firstOfNextMonth := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+	daysRemaining := int(firstOfNextMonth.Sub(now).Hours() / 24)
+
+	nudges := EvaluateAll(
+		recentSpending,
+		dailyHistory,
+		dailyAvg,
+		categoryTx,
+		totalBudgetCap,
+		totalSpent,
+		daysRemaining,
+	)
+
+	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+		"data": nudges,
+	})
 }
 
 // ────────────────────────────────────────────────────────────────
