@@ -118,8 +118,12 @@ func TestPostgres_TxLogStore(t *testing.T) {
 			CommittedAt:    &now,
 		}
 		err = store.Append(ctx, tx2)
-		if err == nil {
-			t.Fatal("expected error for duplicate idempotency key")
+		// NOTE: idempotency_key has no UNIQUE constraint because multiple entries
+		// (debit + credit + fee) may share the same idempotency_key per transfer.
+		// Idempotency is enforced at the Redis layer, not the DB layer.
+		// See architecture.md for details.
+		if err != nil {
+			t.Fatalf("Append duplicate idempotency key should succeed (no UNIQUE constraint): %v", err)
 		}
 	})
 
@@ -206,7 +210,7 @@ func TestPostgres_TxLogStore(t *testing.T) {
 	t.Run("Append_WithAllTxTypes", func(t *testing.T) {
 		txTypes := []struct {
 			name    string
-			txType  string
+			txType  types.TxType
 			sender  *uuid.UUID
 			receiver *uuid.UUID
 		}{
