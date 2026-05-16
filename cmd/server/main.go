@@ -100,11 +100,24 @@ func main() {
 		"flat_fee_basic_sen", feeCfg.FlatFeeBasicSen,
 		"rate_verified_pct", feeCfg.RateVerifiedPct,
 		"min_fee_sen", feeCfg.MinFeeSen,
+		"promo_enabled", feeCfg.Promo != nil,
 	)
+
+	// Initialize promo service if promo config is present.
+	var promoSvc *fee.PromoService
+	if feeCfg.Promo != nil {
+		promoSvc = fee.NewPromoService(*feeCfg.Promo)
+		slog.Info("promo service initialized",
+			"discount_pct", feeCfg.Promo.DiscountPct,
+			"window_start", feeCfg.Promo.FreeTransferWindow.StartTime,
+			"window_end", feeCfg.Promo.FreeTransferWindow.EndTime,
+			"campaign_codes", feeCfg.Promo.CampaignCodes,
+		)
+	}
 
 	// Initialize transfer service and handler.
 	redisCache := idempotency.NewRedisIdempotencyCache(redisClient)
-	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore, *feeCfg)
+	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore, *feeCfg, promoSvc)
 	transferHandler := transfer.NewHandler(transferSvc)
 
 	// Initialize wallet handler (balance projection from tx_log).

@@ -5,3 +5,21 @@
 flat_fee_basic_sen: 2500      # Flat fee in sen for basic KYC transfers (Rp 2,500)
 rate_verified_pct: 0.7        # Percentage fee for verified KYC transfers (0.7% = 0.007)
 min_fee_sen: 1000             # Minimum fee in sen for verified KYC transfers (Rp 1,000)
+
+# Promo configuration — fee discounts and free transfer windows.
+# Coupled to flat_fee_basic_sen and rate_verified_pct above.
+promo:
+  # Discount percentage applied when valid promo code is used (100 = 100% = free).
+  discount_pct: 100.0
+
+  # Free transfer window (ISO 8601 / RFC3339). Transfers within this window
+  # get the full discount when using a valid campaign code.
+  free_transfer_window:
+    start_time: "2026-01-01T00:00:00Z"
+    end_time: "2026-12-31T23:59:59Z"
+
+  # Campaign codes eligible for the promo discount.
+  # Must match [a-zA-Z0-9-]+ — validated at API boundary via ParsePromoCode.
+  campaign_codes:
+    - "BEBASFEE"
+    - "GRATIS-ONGKIR"

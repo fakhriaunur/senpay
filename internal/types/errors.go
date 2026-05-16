@@ -40,6 +40,12 @@ const (
 // MinTransferSen is the minimum transfer amount in sen (Rp 10).
 const MinTransferSen int64 = 1000
 
+// Promo-specific error codes.
+const (
+	ErrCodePromoInvalid = "INVALID_PROMO_CODE"
+	ErrCodePromoExpired = "PROMO_CODE_EXPIRED"
+)
+
 // Pre-built domain errors with Indonesian messages.
 var (
 	ErrInvalidAmount = DomainError{
@@ -106,6 +112,23 @@ var (
 		Code:       ErrCodeInternal,
 		Message:    "Terjadi kesalahan internal",
 		HTTPStatus: 500,
+	}
+)
+
+// Promo-related pre-built domain errors.
+var (
+	// ErrPromoCodeInvalid is returned when a promo code has invalid format or is not recognized.
+	ErrPromoCodeInvalid = DomainError{
+		Code:       ErrCodePromoInvalid,
+		Message:    "Kode promo tidak valid",
+		HTTPStatus: 400,
+	}
+
+	// ErrPromoCodeExpired is returned when a promo code has expired (outside free transfer window).
+	ErrPromoCodeExpired = DomainError{
+		Code:       ErrCodePromoExpired,
+		Message:    "Kode promo sudah kadaluarsa",
+		HTTPStatus: 400,
 	}
 )
 

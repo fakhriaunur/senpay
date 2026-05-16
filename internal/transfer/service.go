@@ -32,6 +32,7 @@ type TransferRequest struct {
 	ToPhone        string `json:"to_phone"`
 	AmountSen      int64  `json:"amount_sen"`
 	Category       string `json:"category,omitempty"`
+	PromoCode      string `json:"promo_code,omitempty"`
 }
 
 // TransferResult represents a successful transfer response.
@@ -45,6 +46,8 @@ type TransferResult struct {
 	SenderID           uuid.UUID `json:"sender_id"`
 	ReceiverID         uuid.UUID `json:"receiver_id"`
 	CreatedAt          time.Time `json:"created_at"`
+	PromoWarning       string    `json:"promo_warning,omitempty"` // set when promo code is invalid/expired
+	AppliedPromoCode   string    `json:"applied_promo_code,omitempty"` // set when promo discount was applied
 	Cached             bool      `json:"-"` // true if result from idempotency cache (returns 200)
 }
 
@@ -62,18 +65,21 @@ type Service struct {
 	userStore       UserStore
 	sagaCoordinator *saga.SagaCoordinator
 	feeConfig       fee.FeeConfig
+	promoSvc        *fee.PromoService
 }
 
 // NewService creates a new transfer Service with the given FeeConfig.
 // The feeConfig is used for all fee calculations during transfers.
+// Optionally pass a PromoService for promo code handling.
 func NewService(
 	pool *pgxpool.Pool,
 	redisCache *idempotency.RedisIdempotencyCache,
 	natsClient *nats.Client,
 	userStore UserStore,
 	feeConfig fee.FeeConfig,
+	promoSvc ...*fee.PromoService,
 ) *Service {
-	return &Service{
+	svc := &Service{
 		pool:            pool,
 		redisCache:      redisCache,
 		natsClient:      natsClient,
@@ -81,6 +87,10 @@ func NewService(
 		sagaCoordinator: saga.NewSagaCoordinator(),
 		feeConfig:       feeConfig,
 	}
+	if len(promoSvc) > 0 {
+		svc.promoSvc = promoSvc[0]
+	}
+	return svc
 }
 
 // cachedResultSuffix is appended to the idempotency key for storing cached response data.
@@ -145,18 +155,29 @@ func (s *Service) Transfer(ctx context.Context, senderID uuid.UUID, req Transfer
 		}
 	}
 
-	// 3. Execute transfer with saga retry inside SERIALIZABLE transaction.
+	// 3. Pre-validate promo code format (early validation, before saga).
+	var promoWarning string
+
+	if req.PromoCode != "" && s.promoSvc != nil {
+		result := s.promoSvc.ApplyPromoCode(req.PromoCode, 0, time.Now().UTC())
+		if !result.Applied && result.PromoWarning != nil {
+			promoWarning = result.PromoWarning.Message
+		}
+	}
+
+	// 4. Execute transfer with saga retry inside SERIALIZABLE transaction.
 	var result *TransferResult
 
 	err = s.sagaCoordinator.Execute(ctx,
 		// Operation: execute transfer within SERIALIZABLE transaction.
 		func(ctx context.Context) error {
-			res, execErr := s.executeTransfer(ctx, senderID, req)
+			res, execErr := s.executeTransfer(ctx, senderID, req, promoWarning)
 			if execErr != nil {
 				slog.Error("transfer operation failed", "error", execErr)
 				return execErr
 			}
 			result = res
+			result.PromoWarning = promoWarning
 			return nil
 		},
 		// Compensation: clear in-flight marker on exhaustion.
@@ -194,7 +215,7 @@ func (s *Service) Transfer(ctx context.Context, senderID uuid.UUID, req Transfer
 }
 
 // executeTransfer runs the transfer logic within a PostgreSQL SERIALIZABLE transaction.
-func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req TransferRequest) (*TransferResult, error) {
+func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req TransferRequest, promoWarning string) (*TransferResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -262,13 +283,26 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 		return nil, feeErr
 	}
 
-	// Total debit for sender = transfer amount + fee.
-	totalDebit := int64(amount) + int64(feeAmount)
+	now := time.Now().UTC()
+
+	// Apply promo discount if promo service is configured and code was provided.
+	effectiveFee := feeAmount
+	var appliedPromo string
+	if req.PromoCode != "" && s.promoSvc != nil && promoWarning == "" {
+		result := s.promoSvc.ApplyPromoCode(req.PromoCode, feeAmount, now)
+		if result.Applied {
+			effectiveFee = result.DiscountedFee
+			appliedPromo = req.PromoCode
+		}
+	}
+
+	// Total debit for sender = transfer amount + effective fee.
+	totalDebit := int64(amount) + int64(effectiveFee)
 	if senderBalance.BalanceSen < totalDebit {
 		return nil, &types.ErrInsufficientBalance
 	}
 
-	// Update sender balance (debit amount + fee).
+	// Update sender balance (debit amount + effective fee).
 	newSenderBalance := senderBalance.BalanceSen - totalDebit
 	if err := s.updateBalanceInTx(ctx, tx, senderID, newSenderBalance, senderBalance.Version); err != nil {
 		return nil, fmt.Errorf("update sender balance: %w", err)
@@ -279,8 +313,6 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 	if err := s.updateBalanceInTx(ctx, tx, receiver.ID, newReceiverBalance, receiverBalance.Version); err != nil {
 		return nil, fmt.Errorf("update receiver balance: %w", err)
 	}
-
-	now := time.Now().UTC()
 
 	// Insert single transfer tx_log entry with both sender and receiver IDs.
 	// A single entry represents the transfer from both perspectives:
@@ -305,14 +337,15 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 		return nil, fmt.Errorf("insert transfer tx: %w", err)
 	}
 
-	// Insert fee tx_log entry (if fee > 0).
-	if int64(feeAmount) > 0 {
+	// Insert fee tx_log entry.
+	// Always insert when fee > 0, or when a promo code was applied (even if fee = 0).
+	if int64(effectiveFee) > 0 || appliedPromo != "" {
 		feeTx := types.Transaction{
 			ID:             uuid.Must(uuid.NewV7()),
 			IdempotencyKey: req.IdempotencyKey,
 			TxType:         types.TxTypeFee,
 			SenderID:       &senderID,
-			AmountSen:      int64(feeAmount),
+			AmountSen:      int64(effectiveFee),
 			Currency:       types.CurrencyIDR,
 			Status:         types.TxStatusCommitted,
 			CreatedAt:      now,
@@ -332,12 +365,13 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 		TxID:               txEntry.ID,
 		Status:             types.TxStatusCommitted.String(),
 		AmountSen:          int64(amount),
-		FeeSen:             int64(feeAmount),
+		FeeSen:             int64(effectiveFee),
 		SenderBalanceSen:   newSenderBalance,
 		ReceiverBalanceSen: newReceiverBalance,
 		SenderID:           senderID,
 		ReceiverID:         receiver.ID,
 		CreatedAt:          now,
+		AppliedPromoCode:   appliedPromo,
 	}, nil
 }
 

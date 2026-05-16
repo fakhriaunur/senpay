@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
 
 	"senpay/internal/types"
 
@@ -21,6 +22,30 @@ type FeeConfig struct {
 	RateVerifiedPct float64 `yaml:"rate_verified_pct"`
 	// MinFeeSen is the minimum fee in sen for verified KYC transfers (floor).
 	MinFeeSen int64 `yaml:"min_fee_sen"`
+	// Promo is the optional promo configuration.
+	Promo *PromoConfig `yaml:"promo,omitempty"`
+}
+
+// PromoConfig holds promo/discount configuration from fees.yaml.
+type PromoConfig struct {
+	// DiscountPct is the discount percentage (100.0 = 100% = free transfer).
+	DiscountPct float64 `yaml:"discount_pct"`
+	// FreeTransferWindow defines the time window during which promo is active.
+	FreeTransferWindow Window `yaml:"free_transfer_window"`
+	// CampaignCodes is the list of valid campaign codes eligible for the discount.
+	CampaignCodes []string `yaml:"campaign_codes"`
+}
+
+// Window defines a time window with start and end times in RFC3339/ISO 8601.
+type Window struct {
+	StartTime time.Time `yaml:"start_time"`
+	EndTime   time.Time `yaml:"end_time"`
+}
+
+// Contains checks whether a given time falls within the window [StartTime, EndTime].
+func (w Window) Contains(t time.Time) bool {
+	return (t.Equal(w.StartTime) || t.After(w.StartTime)) &&
+		(t.Equal(w.EndTime) || t.Before(w.EndTime))
 }
 
 // DefaultFeeConfig returns the default fee configuration.
@@ -65,6 +90,32 @@ func LoadFeeConfig(path string) (*FeeConfig, error) {
 		return nil, fmt.Errorf(
 			"fee config: min_fee_sen must be positive, got %d", cfg.MinFeeSen,
 		)
+	}
+
+	// Validate promo config if present.
+	if cfg.Promo != nil {
+		if cfg.Promo.DiscountPct < 0 || cfg.Promo.DiscountPct > 100 {
+			return nil, fmt.Errorf(
+				"fee config: promo.discount_pct must be between 0 and 100, got %f",
+				cfg.Promo.DiscountPct,
+			)
+		}
+		if cfg.Promo.FreeTransferWindow.StartTime.IsZero() {
+			return nil, fmt.Errorf("fee config: promo.free_transfer_window.start_time is required")
+		}
+		if cfg.Promo.FreeTransferWindow.EndTime.IsZero() {
+			return nil, fmt.Errorf("fee config: promo.free_transfer_window.end_time is required")
+		}
+		if cfg.Promo.FreeTransferWindow.StartTime.After(cfg.Promo.FreeTransferWindow.EndTime) {
+			return nil, fmt.Errorf(
+				"fee config: promo.free_transfer_window.start_time (%s) must be before end_time (%s)",
+				cfg.Promo.FreeTransferWindow.StartTime.Format(time.RFC3339),
+				cfg.Promo.FreeTransferWindow.EndTime.Format(time.RFC3339),
+			)
+		}
+		if len(cfg.Promo.CampaignCodes) == 0 {
+			return nil, fmt.Errorf("fee config: promo.campaign_codes must have at least one code")
+		}
 	}
 
 	return &cfg, nil
