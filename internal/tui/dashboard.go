@@ -102,11 +102,6 @@ var severityColors = map[string]string{
 // nudgeActionTriggeredMsg is sent when user activates the nudge action hint.
 type nudgeActionTriggeredMsg struct{}
 
-// nudgeDismissedMsg is sent when user dismisses a nudge.
-type nudgeDismissedMsg struct {
-	message string
-}
-
 // dashboardScreen is the dashboard screen model.
 type dashboardScreen struct {
 	session    *Session
