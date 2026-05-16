@@ -1,8 +1,19 @@
-# Senpay — Production-Grade Indonesian E-Wallet
+# Senpay — Production-Grade Indonesian E-Wallet 
 
-**Senpay** is a production-grade Indonesian e-wallet backend + TUI demo, designed for fintech engineering interviews at GoPay/OVO/DANA/ShopeePay. Architecture mirrors real industry patterns: Go 1.25, PostgreSQL 18.3, Redis 8.6.3, NATS 2.14.0, FCIS (Functional Core / Imperative Shell), SNAP protocol simulation, append-only ledger, saga orchestration.
+![Version](https://img.shields.io/badge/version-v0.2.0-blue)
+
+**Senpay** is a production-grade Indonesian e-wallet backend + TUI demo, designed for fintech engineering interviews at GoPay/OVO/DANA/ShopeePay. Architecture mirrors real industry patterns: Go 1.26, PostgreSQL 18.3, Redis 8.6.3, NATS 2.14.0, FCIS (Functional Core / Imperative Shell), SNAP protocol simulation, append-only ledger, saga orchestration.
 
 Guided by *The Pragmatic Programmer* principles: tracer bullets (end-to-end before business logic), orthogonality (core.go pure, postgres.go adapter), design by contract (function signatures = contracts), crash-early (overflow checks, DomainError taxonomy).
+
+---
+
+## What's New in v0.2.0
+
+- **PDV Type System**: `KYCLevel`, `TxType`, `TxStatus`, `VAStatus`, `BankProvider`, and other string discriminators replaced with typed newtypes. Each type has a `Parse()` constructor that validates at the boundary. Zero raw string comparisons remain in business logic — all matching is done on the typed variant.
+- **Config-Driven Fees**: `fees.yaml` drives fee calculation: flat fee for basic KYC, percentage rate for verified KYC, configurable minimum fee floor. Promo codes support discount percentages and free-transfer time windows. Parse-Don't-Validate at startup (crash-early on malformed config).
+- **i18n Bilingual**: TUI labels available in Indonesian (`id`) and English (`en`) via locale JSON files (~177 keys). API error messages respond to `Accept-Language` header, returning `id` or `en` messages.
+- **Senpai-Full Nudge Engine**: Velocity rate monitoring, trend detection, anomaly flagging, and exhaustion projection rules power a financial nudge system. Dashboard nudge cards include severity coloring (green/yellow/red). Optional LLM-powered tips via a provider-agnostic adapter supporting OpenAI-compatible, OpenAI Responses, and Anthropic Messages APIs.
 
 ---
 
@@ -71,7 +82,7 @@ internal/ledger/
 
 | Component         | Technology                    | Version  | Purpose                          |
 |-------------------|-------------------------------|----------|----------------------------------|
-| Language          | Go                            | 1.25.6   | Backend + TUI runtime            |
+| Language          | Go                            | 1.26.3   | Backend + TUI runtime            |
 | Database          | PostgreSQL                    | 18.3     | Users, tx_log, balance snapshots |
 | Cache             | Redis                         | 8.6.3    | Idempotency keys, in-flight markers |
 | Messaging         | NATS                          | 2.14.0   | Async events (tx.completed)      |
@@ -80,6 +91,7 @@ internal/ledger/
 | DB Driver         | pgx                           | 5.9.2   | PostgreSQL driver                |
 | Redis Client      | go-redis                      | 9.19.0  | Redis operations                 |
 | NATS Client       | nats.go                       | 1.52.0  | NATS pub/sub                     |
+| YAML Config       | yaml.v3                       | 3.0.1   | fees.yaml + locale parsing       |
 | JWT               | golang-jwt                    | 5.2.1   | Access (30min) + refresh (7d)    |
 | UUID              | google/uuid                   | 1.6.0   | UUID v7 primary keys             |
 | PIN Hashing       | bcrypt (golang.org/x/crypto)  | stdlib  | PIN storage (cost 12)            |
@@ -186,7 +198,7 @@ All amounts in **sen** (1 IDR = 100 sen). Protected endpoints require `Authoriza
 | GET    | `/v1/auth/me`                 | Current user profile                        |
 | GET    | `/v1/balance`                 | Current balance (from balance_snapshot)     |
 | GET    | `/v1/wallet/balance`          | Projected balance (from tx_log)             |
-| POST   | `/v1/transfer`                | Send money to another user                  |
+| POST   | `/v1/transfer`                | Send money to another user (supports `promo_code`) |
 | GET    | `/v1/transactions`            | Transaction history (cursor paginated)      |
 | GET    | `/v1/transactions/{id}`       | Transaction detail                          |
 | POST   | `/v1/topup`                   | Top-up via Virtual Account                  |
@@ -195,7 +207,7 @@ All amounts in **sen** (1 IDR = 100 sen). Protected endpoints require `Authoriza
 | GET    | `/v1/senpai/trend`            | 6-month spending trend                      |
 | POST   | `/v1/senpai/budgets`          | Create category budget                      |
 | GET    | `/v1/senpai/budgets`          | List budgets with spending vs limit         |
-| GET    | `/v1/senpai/nudge`            | Financial nudge (501 when disabled)         |
+| GET    | `/v1/senpai/nudge`            | Nudge cards: velocity, trend, anomaly, exhaustion (LLM tips optional) |
 
 ### Mock Bank Endpoints (In-Process)
 
@@ -326,6 +338,8 @@ just build
 - **JWT**: 30min access token, 7d refresh token, single-use rotation.
 - **Errors**: Indonesian Bahasa Indonesia, typed `DomainError{Code, Message, HTTPStatus}`.
 - **SNAP**: HMAC_SHA512 signing with mandatory headers (X-TIMESTAMP, X-SIGNATURE, X-PARTNER-ID, X-EXTERNAL-ID, CHANNEL-ID).
+- **i18n**: Bilingual Indonesian (id) / English (en). TUI labels via ~177 locale JSON keys. API errors respond to `Accept-Language` header.
+- **Senpai-Full**: Nudge engine with velocity, trend, anomaly, exhaustion projection. Optional LLM tips via provider-agnostic adapter.
 
 ---
 

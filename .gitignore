@@ -27,6 +27,11 @@ Thumbs.db
 
 # Logs
 *.log
+*.err
+
+# Test artifacts (from user-testing validation)
+test_*.json
+*_resp.txt
 
 # Environment & secrets
 .env
