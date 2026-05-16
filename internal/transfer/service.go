@@ -61,14 +61,17 @@ type Service struct {
 	natsClient      *nats.Client
 	userStore       UserStore
 	sagaCoordinator *saga.SagaCoordinator
+	feeConfig       fee.FeeConfig
 }
 
-// NewService creates a new transfer Service.
+// NewService creates a new transfer Service with the given FeeConfig.
+// The feeConfig is used for all fee calculations during transfers.
 func NewService(
 	pool *pgxpool.Pool,
 	redisCache *idempotency.RedisIdempotencyCache,
 	natsClient *nats.Client,
 	userStore UserStore,
+	feeConfig fee.FeeConfig,
 ) *Service {
 	return &Service{
 		pool:            pool,
@@ -76,6 +79,7 @@ func NewService(
 		natsClient:      natsClient,
 		userStore:       userStore,
 		sagaCoordinator: saga.NewSagaCoordinator(),
+		feeConfig:       feeConfig,
 	}
 }
 
@@ -252,8 +256,8 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 		return nil, fmt.Errorf("find sender: %w", err)
 	}
 
-	// Calculate fee based on sender's KYC level.
-	feeAmount, feeErr := fee.CalcFee(amount, sender.KYCLevel)
+	// Calculate fee based on sender's KYC level and fee config.
+	feeAmount, feeErr := fee.CalcFee(amount, sender.KYCLevel, s.feeConfig)
 	if feeErr != nil {
 		return nil, feeErr
 	}

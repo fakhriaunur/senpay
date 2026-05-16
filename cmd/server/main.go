@@ -12,6 +12,7 @@ import (
 	"senpay/internal/auth"
 	"senpay/internal/bank"
 	"senpay/internal/config"
+	"senpay/internal/fee"
 	"senpay/internal/types"
 	"senpay/internal/gateway"
 	"senpay/internal/idempotency"
@@ -89,9 +90,21 @@ func main() {
 	defer natsClient.Close()
 	slog.Info("connected to nats")
 
+	// Load fee configuration from fees.yaml (crash-early on invalid config).
+	feeCfg, err := fee.LoadFeeConfig("fees.yaml")
+	if err != nil {
+		slog.Error("failed to load fee config", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("fee config loaded",
+		"flat_fee_basic_sen", feeCfg.FlatFeeBasicSen,
+		"rate_verified_pct", feeCfg.RateVerifiedPct,
+		"min_fee_sen", feeCfg.MinFeeSen,
+	)
+
 	// Initialize transfer service and handler.
 	redisCache := idempotency.NewRedisIdempotencyCache(redisClient)
-	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore)
+	transferSvc := transfer.NewService(pool, redisCache, natsClient, userStore, *feeCfg)
 	transferHandler := transfer.NewHandler(transferSvc)
 
 	// Initialize wallet handler (balance projection from tx_log).

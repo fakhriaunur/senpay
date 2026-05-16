@@ -9,6 +9,13 @@ import (
 	"pgregory.net/rapid"
 )
 
+// defaultCfg is the test default matching pre-v0.2.0 hardcoded constants.
+var defaultCfg = FeeConfig{
+	FlatFeeBasicSen: 2500,
+	RateVerifiedPct: 0.7,
+	MinFeeSen:       1000,
+}
+
 func TestCalcFee(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +118,7 @@ func TestCalcFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CalcFee(tt.amount, tt.kycLevel)
+			got, err := CalcFee(tt.amount, tt.kycLevel, defaultCfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -152,7 +159,7 @@ func TestCalcFee_ParameterizedEdgeValues(t *testing.T) {
 			if amt <= 0 {
 				continue
 			}
-			fee, err := CalcFee(amt, types.KYCLevelBasic)
+			fee, err := CalcFee(amt, types.KYCLevelBasic, defaultCfg)
 			if err != nil {
 				t.Errorf("unexpected error for amount=%d: %v", amt, err)
 			}
@@ -167,18 +174,19 @@ func TestCalcFee_ParameterizedEdgeValues(t *testing.T) {
 			if amt <= 0 {
 				continue
 			}
-			fee, err := CalcFee(amt, types.KYCLevelVerified)
+			fee, err := CalcFee(amt, types.KYCLevelVerified, defaultCfg)
 			if err != nil {
 				t.Errorf("unexpected error for amount=%d: %v", amt, err)
 			}
-			// Match overflow-safe formula from CalcFee: for amounts above MaxInt64/7,
-			// use amt/1000*7 to avoid overflow; otherwise use amt*7/1000.
-			const overflowThreshold = math.MaxInt64 / 7
+			// Match the config-driven integer arithmetic: after fraction reduction,
+			// fee = amount * 7 / 1000 (for defaultCfg.RateVerifiedPct = 0.7).
+			const redNum = types.Money(7)
+			const redDen = types.Money(1000)
 			var expected types.Money
-			if amt > types.Money(overflowThreshold) {
-				expected = amt / 1000 * 7
+			if amt > types.Money(math.MaxInt64)/redNum {
+				expected = amt / redDen * redNum
 			} else {
-				expected = amt * 7 / 1000
+				expected = amt * redNum / redDen
 			}
 			if expected < 1000 {
 				expected = 1000
@@ -306,7 +314,7 @@ func TestCalcFees(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CalcFees(tt.inputs)
+			got, err := CalcFees(tt.inputs, defaultCfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -342,7 +350,7 @@ func TestProperty_CalcFee_NonNegative(t *testing.T) {
 		}).Draw(t, "kycLevel")
 		kycLevel := types.KYCLevel(kycLevelStr)
 
-		fee, err := CalcFee(types.Money(amount), kycLevel)
+		fee, err := CalcFee(types.Money(amount), kycLevel, defaultCfg)
 		if err != nil {
 			t.Fatalf("unexpected error for amount=%d kyc=%q: %v", amount, kycLevel, err)
 		}
@@ -362,18 +370,20 @@ func TestProperty_CalcFee_FormulaVerified(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		amount := rapid.Int64Range(143000, math.MaxInt64).Draw(t, "amount")
 
-		fee, err := CalcFee(types.Money(amount), types.KYCLevelVerified)
+		fee, err := CalcFee(types.Money(amount), types.KYCLevelVerified, defaultCfg)
 		if err != nil {
 			t.Fatalf("unexpected error for amount=%d: %v", amount, err)
 		}
 
-		// Match the overflow-safe formula from CalcFee.
-		const overflowThreshold = math.MaxInt64 / 7
+		// Match the config-driven integer arithmetic: fee = amount * 7 / 1000
+		// (after fraction reduction of defaultCfg: 0.7 → 7000/1000000 → 7/1000).
+		const redNum = types.Money(7)
+		const redDen = types.Money(1000)
 		var expected types.Money
-		if amount > overflowThreshold {
-			expected = types.Money(amount) / 1000 * 7
+		if types.Money(amount) > types.Money(math.MaxInt64)/redNum {
+			expected = types.Money(amount) / redDen * redNum
 		} else {
-			expected = types.Money(amount) * 7 / 1000
+			expected = types.Money(amount) * redNum / redDen
 		}
 		if fee != expected {
 			t.Fatalf("verified fee for amount=%d: got %d, want %d", amount, fee, expected)
@@ -392,7 +402,7 @@ func TestProperty_CalcFee_VerifiedFloor(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		amount := rapid.Int64Range(1, 142857).Draw(t, "amount") // below floor threshold
 
-		fee, err := CalcFee(types.Money(amount), types.KYCLevelVerified)
+		fee, err := CalcFee(types.Money(amount), types.KYCLevelVerified, defaultCfg)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -410,7 +420,7 @@ func TestProperty_CalcFee_BasicAlways2500(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		amount := rapid.Int64Range(1, math.MaxInt64).Draw(t, "amount")
 
-		fee, err := CalcFee(types.Money(amount), types.KYCLevelBasic)
+		fee, err := CalcFee(types.Money(amount), types.KYCLevelBasic, defaultCfg)
 		if err != nil {
 			t.Fatalf("unexpected error for amount=%d: %v", amount, err)
 		}
@@ -442,7 +452,7 @@ func TestProperty_CalcFees_SumMatches(t *testing.T) {
 				KYCLevel: kyc,
 			}
 
-			fee, err := CalcFee(types.Money(amount), kyc)
+			fee, err := CalcFee(types.Money(amount), kyc, defaultCfg)
 			if err != nil {
 				t.Fatalf("CalcFee error: %v", err)
 			}
@@ -453,12 +463,83 @@ func TestProperty_CalcFees_SumMatches(t *testing.T) {
 			expectedTotal = sum
 		}
 
-		total, err := CalcFees(inputs)
+		total, err := CalcFees(inputs, defaultCfg)
 		if err != nil {
 			t.Fatalf("CalcFees error: %v", err)
 		}
 		if total != expectedTotal {
 			t.Fatalf("CalcFees=%d, sum of individual CalcFee=%d", total, expectedTotal)
+		}
+	})
+}
+
+func TestCalcFeeWithConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("basic_uses_flat_fee_basic_sen", func(t *testing.T) {
+		cfg := FeeConfig{FlatFeeBasicSen: 5000, RateVerifiedPct: 0.5, MinFeeSen: 2000}
+		fee, err := CalcFee(100000, types.KYCLevelBasic, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fee != 5000 {
+			t.Errorf("basic fee: got %d, want 5000", fee)
+		}
+	})
+
+	t.Run("verified_uses_rate_with_floor", func(t *testing.T) {
+		cfg := FeeConfig{FlatFeeBasicSen: 2500, RateVerifiedPct: 0.5, MinFeeSen: 2000}
+		// Rp 1,000,000: 0.5% = 5,000 sen, floor is 2,000 → 5,000
+		fee, err := CalcFee(1000000, types.KYCLevelVerified, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fee != 5000 {
+			t.Errorf("verified fee for 1M: got %d, want 5000", fee)
+		}
+	})
+
+	t.Run("verified_floor_applied", func(t *testing.T) {
+		cfg := FeeConfig{FlatFeeBasicSen: 2500, RateVerifiedPct: 0.5, MinFeeSen: 2000}
+		// Rp 100,000: 0.5% = 500 sen, floor is 2,000 → 2,000
+		fee, err := CalcFee(100000, types.KYCLevelVerified, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fee != 2000 {
+			t.Errorf("verified fee with floor: got %d, want 2000", fee)
+		}
+	})
+
+	t.Run("different_config_values", func(t *testing.T) {
+		cfg := FeeConfig{FlatFeeBasicSen: 3000, RateVerifiedPct: 1.0, MinFeeSen: 1500}
+		// Basic uses flat fee.
+		basicFee, err := CalcFee(50000, types.KYCLevelBasic, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if basicFee != 3000 {
+			t.Errorf("basic fee: got %d, want 3000", basicFee)
+		}
+		// Verified uses % of amount.
+		// Rp 1,000,000: 1.0% = 10,000 sen, floor is 1,500 → 10,000
+		verFee, err := CalcFee(1000000, types.KYCLevelVerified, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if verFee != 10000 {
+			t.Errorf("verified fee: got %d, want 10000", verFee)
+		}
+	})
+
+	t.Run("unknown_kyc_uses_basic_flat", func(t *testing.T) {
+		cfg := FeeConfig{FlatFeeBasicSen: 3000, RateVerifiedPct: 0.5, MinFeeSen: 1000}
+		fee, err := CalcFee(100000, types.KYCLevel("unknown"), cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fee != 3000 {
+			t.Errorf("unknown KYC fee: got %d, want 3000", fee)
 		}
 	})
 }
