@@ -126,6 +126,11 @@ func TestConcurrentInFlight(t *testing.T) {
 	// --- Goroutine B (main goroutine): same key → 202 ---
 	resultB, errB := svc.Transfer(ctx, sender.ID, req)
 
+	// --- Release barrier so goroutine A can complete ---
+	// Must close proceed BEFORE assertions to prevent goroutine leak.
+	close(cache.proceed)
+	wg.Wait()
+
 	// Verify B receives REQUEST_IN_FLIGHT.
 	if errB == nil {
 		t.Fatal("expected DomainError REQUEST_IN_FLIGHT for goroutine B, got nil")
@@ -143,10 +148,6 @@ func TestConcurrentInFlight(t *testing.T) {
 	if errB.Message != "Permintaan sedang diproses" {
 		t.Errorf("expected message %q, got %q", "Permintaan sedang diproses", errB.Message)
 	}
-
-	// --- Release barrier so goroutine A can complete ---
-	close(cache.proceed)
-	wg.Wait()
 
 	// A should have completed without error.
 	if errA != nil {
