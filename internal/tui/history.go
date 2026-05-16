@@ -58,15 +58,15 @@ type viewDetailMsg struct {
 }
 
 // loadPageCmd fetches a page of transactions.
-func loadPageCmd(token, cursor string) tea.Cmd {
+func loadPageCmd(token, cursor, lang string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := GetTransactions(token, cursor, types.PageDefaultLimit)
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") {
-				return historyErrMsg{err: "Gagal terhubung ke server"}
+				return historyErrMsg{err: T("error_network", lang)}
 			}
-			return historyErrMsg{err: "Gagal memuat riwayat"}
+			return historyErrMsg{err: T("error_load_history", lang)}
 		}
 		return historyLoadedMsg{
 			items:      result.Data,
@@ -80,7 +80,7 @@ func loadPageCmd(token, cursor string) tea.Cmd {
 func (h *historyScreen) Init() tea.Cmd {
 	if !h.loaded {
 		h.loading = true
-		return loadPageCmd(h.session.Token, "")
+		return loadPageCmd(h.session.Token, "", h.session.Lang())
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func (h *historyScreen) Update(msg tea.Msg) (*historyScreen, tea.Cmd) {
 				// Save current page's cursor, then load next page.
 				h.loading = true
 				h.prevCursors = append(h.prevCursors, h.currentCursor)
-				return h, loadPageCmd(h.session.Token, h.nextCursor)
+				return h, loadPageCmd(h.session.Token, h.nextCursor, h.session.Lang())
 			}
 			return h, nil
 
@@ -117,7 +117,7 @@ func (h *historyScreen) Update(msg tea.Msg) (*historyScreen, tea.Cmd) {
 				h.loading = true
 				prevCursor := h.prevCursors[len(h.prevCursors)-1]
 				h.prevCursors = h.prevCursors[:len(h.prevCursors)-1]
-				return h, loadPageCmd(h.session.Token, prevCursor)
+				return h, loadPageCmd(h.session.Token, prevCursor, h.session.Lang())
 			}
 			return h, nil
 
@@ -180,11 +180,11 @@ func (h *historyScreen) counterpartyName(tx TransactionItem) string {
 	}
 	switch types.TxType(tx.TxType) {
 	case types.TxTypeTopup:
-		return "Top Up"
+		return h.session.T("counterparty_topup")
 	case types.TxTypeWithdraw:
-		return "Withdraw"
+		return h.session.T("counterparty_withdraw")
 	case types.TxTypeFee:
-		return "Biaya Transfer"
+		return h.session.T("counterparty_fee")
 	default:
 		return "-"
 	}
@@ -208,8 +208,9 @@ func (h *historyScreen) statusIcon(status string) string {
 
 func (h *historyScreen) View() string {
 	var b strings.Builder
+	lang := h.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Riwayat Transaksi"))
+	b.WriteString(TitleStyle.Render(T("title_history", lang)))
 	b.WriteString("\n\n")
 
 	if h.errMsg != "" {
@@ -222,7 +223,7 @@ func (h *historyScreen) View() string {
 		b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).
 			Render(lipgloss.NewStyle().
 				Foreground(lipgloss.Color(colorPrimary)).
-				Render("Memuat..."),
+				Render(T("loading", lang)),
 			))
 		return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 	}
@@ -231,10 +232,10 @@ func (h *historyScreen) View() string {
 		b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).
 			Render(lipgloss.NewStyle().
 				Foreground(lipgloss.Color(colorSecondary)).
-				Render("Belum ada transaksi"),
+				Render(T("empty_history", lang)),
 			))
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("Esc: kembali"))
+		b.WriteString(HelpStyle.Render(T("help_detail", lang)))
 		return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 	}
 
@@ -245,10 +246,10 @@ func (h *historyScreen) View() string {
 		Padding(0, 1)
 
 	header := lipgloss.JoinHorizontal(lipgloss.Left,
-		headerStyle.Width(14).Render("Tanggal"),
-		headerStyle.Width(22).Render("Counterparty"),
-		headerStyle.Width(16).Align(lipgloss.Right).Render("Jumlah"),
-		headerStyle.Width(8).Align(lipgloss.Center).Render("Status"),
+		headerStyle.Width(14).Render(T("col_date", lang)),
+		headerStyle.Width(22).Render(T("col_counterparty", lang)),
+		headerStyle.Width(16).Align(lipgloss.Right).Render(T("col_amount", lang)),
+		headerStyle.Width(8).Align(lipgloss.Center).Render(T("col_status", lang)),
 	)
 
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(header))
@@ -301,30 +302,32 @@ func (h *historyScreen) View() string {
 
 	// Pagination indicator.
 	b.WriteString("\n")
+	paginationNext := T("pagination_next", lang)
+	paginationPrev := T("pagination_prev", lang)
 	if h.hasMore || len(h.prevCursors) > 0 {
 		pageInfo := ""
 		if len(h.prevCursors) > 0 {
-			pageInfo += "↑ prev"
+			pageInfo += paginationPrev
 		}
 		if h.hasMore && !h.loading {
 			if pageInfo != "" {
 				pageInfo += " • "
 			}
-			pageInfo += "↓ next"
+			pageInfo += paginationNext
 		}
 		b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).
 			Foreground(lipgloss.Color(colorSecondary)).Render(
-				fmt.Sprintf("(%d transaksi) %s", len(h.items), pageInfo),
+				fmt.Sprintf(T("pagination_transactions", lang)+" %s", len(h.items), pageInfo),
 			))
 	} else {
 		b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).
 			Foreground(lipgloss.Color(colorSecondary)).Render(
-				fmt.Sprintf("(%d transaksi)", len(h.items)),
+				fmt.Sprintf(T("pagination_transactions", lang), len(h.items)),
 			))
 	}
 
 	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render("↑↓: navigasi • Enter: detail • Esc: kembali"))
+	b.WriteString(HelpStyle.Render(T("help_history", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }

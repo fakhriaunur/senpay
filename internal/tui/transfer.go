@@ -45,9 +45,9 @@ type transferScreen struct {
 
 // newTransferScreen creates a new transfer screen.
 func newTransferScreen(session *Session) *transferScreen {
-	phone := NewTextInput("Nomor HP penerima (08xxx)", true, false)
+	phone := NewTextInput(session.T("recipient_phone_label")+" (08xxx)", true, false)
 
-	amount := NewTextInput("Jumlah (Rp)", false, false)
+	amount := NewTextInput(session.T("amount_label"), false, false)
 	amount.Prompt = "Rp "
 
 	return &transferScreen{
@@ -77,29 +77,29 @@ type transferErrMsg struct {
 type transferReturnTick struct{}
 
 // transferCmd performs the transfer API call.
-func transferCmd(token, idempotencyKey, toPhone string, amountSen int64) tea.Cmd {
+func transferCmd(token, idempotencyKey, toPhone string, amountSen int64, lang string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := PostTransfer(token, idempotencyKey, toPhone, amountSen)
 		if err != nil {
 			errMsg := err.Error()
-			// Map API errors to Indonesian-friendly messages.
+			// Map API errors to localized messages.
 			if strings.Contains(errMsg, "Saldo tidak cukup") {
-				return transferErrMsg{err: "Saldo tidak mencukupi"}
+				return transferErrMsg{err: T("error_insufficient_balance", lang)}
 			}
 			if strings.Contains(errMsg, "Pengguna tidak ditemukan") {
-				return transferErrMsg{err: "Pengguna tidak ditemukan"}
+				return transferErrMsg{err: T("error_user_not_found", lang)}
 			}
 			if strings.Contains(errMsg, "Tidak bisa transfer ke diri sendiri") {
-				return transferErrMsg{err: "Tidak bisa transfer ke diri sendiri"}
+				return transferErrMsg{err: T("error_self_transfer", lang)}
 			}
 			if strings.Contains(errMsg, "Jumlah tidak valid") {
-				return transferErrMsg{err: "Jumlah tidak valid"}
+				return transferErrMsg{err: T("error_invalid_amount", lang)}
 			}
 			if strings.Contains(errMsg, "Melebihi batas transaksi") {
-				return transferErrMsg{err: "Melebihi batas transaksi"}
+				return transferErrMsg{err: T("error_exceeds_limit", lang)}
 			}
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") {
-				return transferErrMsg{err: "Gagal terhubung ke server"}
+				return transferErrMsg{err: T("error_network", lang)}
 			}
 			return transferErrMsg{err: errMsg}
 		}
@@ -195,31 +195,31 @@ func (t *transferScreen) updateForm(msg tea.KeyMsg) (*transferScreen, tea.Cmd) {
 
 			// Validate phone.
 			if phone == "" {
-				t.errMsg = "Nomor HP penerima wajib diisi"
+				t.errMsg = t.session.T("error_recipient_required")
 				return t, nil
 			}
 			cleanPhone := strings.TrimPrefix(phone, "+")
 			if !strings.HasPrefix(cleanPhone, types.PhonePrefix08) && !strings.HasPrefix(cleanPhone, types.PhonePrefix62) {
-				t.errMsg = "Format nomor HP tidak valid"
+				t.errMsg = t.session.T("error_invalid_phone_format")
 				return t, nil
 			}
 			if len(cleanPhone) < types.PhoneMinLength || len(cleanPhone) > TUIPhoneMaxLength {
-				t.errMsg = "Format nomor HP tidak valid"
+				t.errMsg = t.session.T("error_invalid_phone_format")
 				return t, nil
 			}
 
 			// Validate amount.
 			if amountRaw == "" || amountRaw == "0" {
-				t.errMsg = "Jumlah transfer wajib diisi"
+				t.errMsg = t.session.T("error_amount_required")
 				return t, nil
 			}
 			amountSen, err := parseAmountSen(amountRaw)
 			if err != nil || amountSen <= 0 {
-				t.errMsg = "Jumlah tidak valid"
+				t.errMsg = t.session.T("error_invalid_amount")
 				return t, nil
 			}
 			if amountSen < 1000 {
-				t.errMsg = "Minimal transfer Rp 10"
+				t.errMsg = t.session.T("error_min_transfer")
 				return t, nil
 			}
 
@@ -267,7 +267,7 @@ func (t *transferScreen) updateConfirm(msg tea.KeyMsg) (*transferScreen, tea.Cmd
 			idempotencyKey := uuid.Must(uuid.NewV7()).String()
 			t.state = transferStateLoading
 			t.errMsg = ""
-			return t, transferCmd(t.session.Token, idempotencyKey, t.confirmPhone, t.confirmAmt)
+			return t, transferCmd(t.session.Token, idempotencyKey, t.confirmPhone, t.confirmAmt, t.session.Lang())
 		}
 		// Cancel — return to form.
 		t.state = transferStateForm
@@ -381,10 +381,11 @@ func (t *transferScreen) View() string {
 
 func (t *transferScreen) renderForm() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Transfer"))
+	b.WriteString(TitleStyle.Render(T("title_transfer", lang)))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render("Kirim uang ke pengguna lain"))
+	b.WriteString(SubtitleStyle.Render(T("subtitle_transfer", lang)))
 	b.WriteString("\n\n")
 
 	if t.errMsg != "" {
@@ -393,7 +394,7 @@ func (t *transferScreen) renderForm() string {
 	}
 
 	// Phone input.
-	b.WriteString(InputPromptStyle.Render("Nomor HP Penerima"))
+	b.WriteString(InputPromptStyle.Render(T("recipient_phone_label", lang)))
 	b.WriteString("\n")
 	if t.focusIndex == 0 {
 		b.WriteString(FocusedInputStyle.Render(t.phoneInput.View()))
@@ -403,7 +404,7 @@ func (t *transferScreen) renderForm() string {
 	b.WriteString("\n")
 
 	// Amount input.
-	b.WriteString(InputPromptStyle.Render("Jumlah (Rp)"))
+	b.WriteString(InputPromptStyle.Render(T("amount_label", lang)))
 	b.WriteString("\n")
 	// Show live preview of formatted amount.
 	amountVal := filterDigits(t.amountInput.Value())
@@ -420,21 +421,22 @@ func (t *transferScreen) renderForm() string {
 
 	// Submit button.
 	if t.focusIndex == 2 {
-		b.WriteString(FocusedButtonStyle.Render("Transfer"))
+		b.WriteString(FocusedButtonStyle.Render(T("button_transfer", lang)))
 	} else {
-		b.WriteString(ButtonStyle.Render("Transfer"))
+		b.WriteString(ButtonStyle.Render(T("button_transfer", lang)))
 	}
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("Tab: pindah field • Enter: lanjut • Esc: kembali"))
+	b.WriteString(HelpStyle.Render(T("help_transfer", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *transferScreen) renderConfirm() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Konfirmasi Transfer"))
+	b.WriteString(TitleStyle.Render(T("title_confirm_transfer", lang)))
 	b.WriteString("\n\n")
 
 	confStyle := lipgloss.NewStyle().
@@ -445,13 +447,13 @@ func (t *transferScreen) renderConfirm() string {
 		Align(lipgloss.Center)
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		InputPromptStyle.Render("Penerima"),
+		InputPromptStyle.Render(T("label_recipient", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(t.confirmPhone),
 		"",
-		InputPromptStyle.Render("Jumlah"),
+		InputPromptStyle.Render(T("label_amount", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(t.confirmAmt)),
 		"",
-		InputPromptStyle.Render("Saldo saat ini"),
+		InputPromptStyle.Render(T("label_current_balance", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(formatAmountSen(t.session.BalanceSen)),
 	)
 
@@ -461,18 +463,20 @@ func (t *transferScreen) renderConfirm() string {
 	b.WriteString("\n\n")
 
 	// Buttons.
+	confirmText := T("button_send", lang)
+	cancelText := T("button_cancel", lang)
 	var confirmLabel string
 	if t.focusIndex == 0 {
-		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render("✓ Kirim")
+		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render(confirmText)
 	} else {
-		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorHighlight)).Padding(0, 2).Render("✓ Kirim")
+		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorHighlight)).Padding(0, 2).Render(confirmText)
 	}
 
 	var cancelLabel string
 	if t.focusIndex == 1 {
-		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorError)).Padding(0, 2).Render("✕ Batal")
+		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorError)).Padding(0, 2).Render(cancelText)
 	} else {
-		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render("✕ Batal")
+		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render(cancelText)
 	}
 
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -480,21 +484,22 @@ func (t *transferScreen) renderConfirm() string {
 	))
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("Enter: konfirmasi • Esc: batal"))
+	b.WriteString(HelpStyle.Render(T("help_confirm", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *transferScreen) renderLoading() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Transfer"))
+	b.WriteString(TitleStyle.Render(T("title_transfer", lang)))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorPrimary)).
 			Bold(true).
-			Render("Memproses transfer..."),
+			Render(T("loading_transfer", lang)),
 	))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -506,8 +511,9 @@ func (t *transferScreen) renderLoading() string {
 
 func (t *transferScreen) renderSuccess() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Transfer Berhasil"))
+	b.WriteString(TitleStyle.Render(T("title_success_transfer", lang)))
 	b.WriteString("\n\n")
 
 	successStyle := lipgloss.NewStyle().
@@ -518,18 +524,18 @@ func (t *transferScreen) renderSuccess() string {
 		Align(lipgloss.Center)
 
 	successContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render("✓ Transfer berhasil!"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(T("success_transfer", lang)),
 		"",
-		InputPromptStyle.Render("ID Transaksi"),
+		InputPromptStyle.Render(T("label_tx_id", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(shortID(t.txID)),
 		"",
-		InputPromptStyle.Render("Jumlah"),
+		InputPromptStyle.Render(T("label_amount", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(t.amountSen)),
 		"",
-		InputPromptStyle.Render("Biaya"),
+		InputPromptStyle.Render(T("label_fee", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(formatAmountSen(t.feeSen)),
 		"",
-		InputPromptStyle.Render("Saldo Baru"),
+		InputPromptStyle.Render(T("label_new_balance", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(t.newBalance)),
 		"",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Render(t.createdAt),
@@ -539,15 +545,16 @@ func (t *transferScreen) renderSuccess() string {
 		successStyle.Render(successContent),
 	))
 	b.WriteString("\n\n")
-	b.WriteString(HelpStyle.Render("Kembali ke Dashboard dalam 3 detik..."))
+	b.WriteString(HelpStyle.Render(T("help_success_transfer", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *transferScreen) renderError() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Transfer Gagal"))
+	b.WriteString(TitleStyle.Render(T("title_error_transfer", lang)))
 	b.WriteString("\n\n")
 
 	errorStyle := lipgloss.NewStyle().
@@ -558,7 +565,7 @@ func (t *transferScreen) renderError() string {
 		Align(lipgloss.Center)
 
 	errContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render("✕ Transfer gagal"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render(T("error_transfer", lang)),
 		"",
 		ErrorStyle.Render(t.errMsg),
 	)
@@ -569,9 +576,9 @@ func (t *transferScreen) renderError() string {
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render("Enter: Coba Lagi"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render(T("button_retry", lang)),
 			"  ",
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render("Esc: Kembali"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render(T("button_back", lang)),
 		),
 	))
 

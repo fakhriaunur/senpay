@@ -18,18 +18,20 @@ const (
 	ActionHistory
 )
 
-// quickAction represents a quick action button on the dashboard.
-type quickAction struct {
-	id    int
-	label string
-	icon  string
+// quickActionI18nKeys maps action IDs to their i18n keys.
+var quickActionI18nKeys = map[int]string{
+	ActionTransfer: "quick_action_transfer",
+	ActionTopUp:    "quick_action_topup",
+	ActionWithdraw: "quick_action_withdraw",
+	ActionHistory:  "quick_action_history",
 }
 
-var quickActions = []quickAction{
-	{id: ActionTransfer, label: "Transfer", icon: "⇄"},
-	{id: ActionTopUp, label: "Top Up", icon: "↓"},
-	{id: ActionWithdraw, label: "Withdraw", icon: "↑"},
-	{id: ActionHistory, label: "History", icon: "☰"},
+// quickActionIcons maps action IDs to their display icons.
+var quickActionIcons = map[int]string{
+	ActionTransfer: "⇄",
+	ActionTopUp:    "↓",
+	ActionWithdraw: "↑",
+	ActionHistory:  "☰",
 }
 
 // Navigation tab IDs.
@@ -42,31 +44,26 @@ const (
 	NavWithdraw
 )
 
-// navTab represents a navigation tab.
-type navTab struct {
-	id    int
-	label string
+// navTabI18nKeys maps tab IDs to their i18n keys.
+var navTabI18nKeys = map[int]string{
+	NavLogin:     "nav_profile",
+	NavDashboard: "nav_dashboard",
+	NavTransfer:  "nav_transfer",
+	NavHistory:   "nav_history",
+	NavTopUp:     "nav_topup",
+	NavWithdraw:  "nav_withdraw",
 }
 
-var navTabs = []navTab{
-	{id: NavLogin, label: "Profile"},
-	{id: NavDashboard, label: "Dashboard"},
-	{id: NavTransfer, label: "Transfer"},
-	{id: NavHistory, label: "History"},
-	{id: NavTopUp, label: "Top Up"},
-	{id: NavWithdraw, label: "Withdraw"},
-}
-
-// Senpai tips in Indonesian.
-var senpaiTips = []string{
-	"Hemat pangkal kaya!",
-	"Catat pengeluaranmu hari ini",
-	"Menabung 10% penghasilan lebih baik daripada tidak sama sekali",
-	"Gunakan uang digital untuk mengurangi pengeluaran tak terduga",
-	"Selalu periksa saldo sebelum bertransaksi",
-	"Bijak dalam bertransaksi adalah kunci keuangan sehat",
-	"Jangan lupa isi saldo untuk kebutuhan darurat",
-	"Pantau histori transaksi untuk evaluasi keuangan",
+// Senpai tips i18n keys.
+var senpaiTipKeys = []string{
+	"senpai_tip_1",
+	"senpai_tip_2",
+	"senpai_tip_3",
+	"senpai_tip_4",
+	"senpai_tip_5",
+	"senpai_tip_6",
+	"senpai_tip_7",
+	"senpai_tip_8",
 }
 
 // Balance refresh interval (30 seconds).
@@ -87,16 +84,16 @@ func newDashboardScreen(session *Session) *dashboardScreen {
 		session:    session,
 		focusIndex: -1,
 		activeTab:  NavDashboard,
-		tip:        randomTip(),
+		tip:        randomTip(session.Lang()),
 	}
 
 	// Trigger initial balance fetch.
 	return d
 }
 
-// randomTip returns a random senpai tip.
-func randomTip() string {
-	return senpaiTips[rand.Intn(len(senpaiTips))]
+// randomTip returns a random senpai tip in the given language.
+func randomTip(lang string) string {
+	return T(senpaiTipKeys[rand.Intn(len(senpaiTipKeys))], lang)
 }
 
 // balanceUpdatedMsg carries updated balance info.
@@ -174,7 +171,7 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 		switch msg.String() {
 		case "tab", "down":
 			// Cycle through quick actions.
-			if d.focusIndex < len(quickActions)-1 {
+			if d.focusIndex < len(quickActionIcons)-1 {
 				d.focusIndex++
 			} else {
 				d.focusIndex = 0
@@ -185,15 +182,15 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 			if d.focusIndex > 0 {
 				d.focusIndex--
 			} else {
-				d.focusIndex = len(quickActions) - 1
+				d.focusIndex = len(quickActionIcons) - 1
 			}
 			return d, nil
 
 		case "enter", " ":
-			if d.focusIndex >= 0 && d.focusIndex < len(quickActions) {
-				action := quickActions[d.focusIndex]
+			if d.focusIndex >= 0 && d.focusIndex < len(quickActionIcons) {
+				actionIDs := []int{ActionTransfer, ActionTopUp, ActionWithdraw, ActionHistory}
 				return d, func() tea.Msg {
-					return quickActionSelectedMsg{actionID: action.id}
+					return quickActionSelectedMsg{actionID: actionIDs[d.focusIndex]}
 				}
 			}
 			return d, nil
@@ -223,6 +220,11 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 			return d, func() tea.Msg {
 				return quickActionSelectedMsg{actionID: ActionWithdraw}
 			}
+		case "5", "s":
+			// Navigate to Settings.
+			return d, func() tea.Msg {
+				return navigateToSettingsMsg{}
+			}
 		}
 
 	case balanceTickMsg:
@@ -234,7 +236,7 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 
 	case balanceUpdatedMsg:
 		if msg.err != "" {
-			d.errMsg = "Gagal memperbarui saldo"
+			d.errMsg = d.session.T("error_balance_fetch")
 		} else {
 			d.session.SetBalance(msg.balanceSen, msg.version)
 			d.errMsg = ""
@@ -248,18 +250,19 @@ func (d *dashboardScreen) Update(msg tea.Msg) (*dashboardScreen, tea.Cmd) {
 
 func (d *dashboardScreen) View() string {
 	var b strings.Builder
+	lang := d.session.Lang()
 
 	// Navigation tabs at top.
-	b.WriteString(d.renderNav())
+	b.WriteString(d.renderNav(lang))
 	b.WriteString("\n")
 
 	// Greeting.
-	greeting := fmt.Sprintf("Halo, %s!", maskPhone(d.session.Phone))
+	greeting := d.session.T("greeting", maskPhone(d.session.Phone))
 	b.WriteString(GreetingStyle.Render(greeting))
 	b.WriteString("\n")
 
 	// Balance.
-	b.WriteString(BalanceLabelStyle.Render("Saldo Anda"))
+	b.WriteString(BalanceLabelStyle.Render(d.session.T("balance_label")))
 	b.WriteString("\n")
 	b.WriteString(BalanceStyle.Render(formatIDR(d.session.BalanceSen)))
 	b.WriteString("\n")
@@ -271,7 +274,7 @@ func (d *dashboardScreen) View() string {
 	}
 
 	// Quick actions.
-	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render("\n" + d.renderQuickActions()))
+	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render("\n" + d.renderQuickActions(lang)))
 	b.WriteString("\n")
 
 	// Senpai tip.
@@ -285,7 +288,7 @@ func (d *dashboardScreen) View() string {
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		tipBox.Render(
 			lipgloss.JoinVertical(lipgloss.Center,
-				lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorSenpai)).Render("💡 Senpai Tip"),
+				lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorSenpai)).Render(d.session.T("senpai_tip_title")),
 				"",
 				d.tip,
 			),
@@ -294,37 +297,42 @@ func (d *dashboardScreen) View() string {
 	b.WriteString("\n")
 
 	// Help text.
-	b.WriteString(HelpStyle.Render("Tab: navigasi • Enter: pilih • 1:T 2:U 3:H 4:W • ?: bantuan • Ctrl+C: keluar"))
+	b.WriteString(HelpStyle.Render(d.session.T("help_dashboard")))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 // renderNav renders the navigation tabs.
-func (d *dashboardScreen) renderNav() string {
+func (d *dashboardScreen) renderNav(lang string) string {
 	var tabs []string
-	for _, tab := range navTabs {
+	tabIDs := []int{NavLogin, NavDashboard, NavTransfer, NavHistory, NavTopUp, NavWithdraw}
+	for _, id := range tabIDs {
+		label := T(navTabI18nKeys[id], lang)
 		var style lipgloss.Style
-		if tab.id == d.activeTab {
+		if id == d.activeTab {
 			style = NavTabActiveStyle
 		} else {
 			style = NavTabStyle.Foreground(lipgloss.Color(colorSecondary))
 		}
-		tabs = append(tabs, style.Render(tab.label))
+		tabs = append(tabs, style.Render(label))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Center, tabs...)
 }
 
 // renderQuickActions renders the quick action buttons.
-func (d *dashboardScreen) renderQuickActions() string {
+func (d *dashboardScreen) renderQuickActions(lang string) string {
 	var actions []string
-	for i, action := range quickActions {
+	actionIDs := []int{ActionTransfer, ActionTopUp, ActionWithdraw, ActionHistory}
+	for i, id := range actionIDs {
+		label := T(quickActionI18nKeys[id], lang)
+		icon := quickActionIcons[id]
 		var style lipgloss.Style
 		if d.focusIndex == i {
 			style = FocusedQuickActionStyle
 		} else {
 			style = QuickActionStyle
 		}
-		actions = append(actions, style.Render(action.icon+" "+action.label))
+		actions = append(actions, style.Render(icon+" "+label))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Center, actions...)
 }

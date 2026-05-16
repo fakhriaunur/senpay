@@ -22,7 +22,7 @@ type loginScreen struct {
 
 // newLoginScreen creates a new login screen.
 func newLoginScreen(session *Session) *loginScreen {
-	phone := NewTextInput("Nomor HP (08xxx)", true, false)
+	phone := NewTextInput(session.T("phone_label")+" (08xxx)", true, false)
 	phone.Validate = func(s string) error {
 		// Only accept digits
 		clean := strings.TrimSpace(s)
@@ -34,7 +34,7 @@ func newLoginScreen(session *Session) *loginScreen {
 		return nil
 	}
 
-	pin := NewTextInput("PIN", false, true)
+	pin := NewTextInput(session.T("pin_label"), false, true)
 
 	return &loginScreen{
 		phoneInput: phone,
@@ -57,23 +57,23 @@ type loginErrMsg struct {
 }
 
 // loginCmd performs the login API call.
-func loginCmd(phone, pin string) tea.Cmd {
+func loginCmd(phone, pin, lang string) tea.Cmd {
 	return func() tea.Msg {
 		token, refreshToken, err := Login(phone, pin)
 		if err != nil {
-			// Map errors to Indonesian messages.
+			// Map errors to localized messages.
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "PIN salah") {
-				return loginErrMsg{err: "PIN salah"}
+				return loginErrMsg{err: T("error_pin_wrong", lang)}
 			}
 			if strings.Contains(errMsg, "Pengguna tidak ditemukan") {
-				return loginErrMsg{err: "Pengguna tidak ditemukan"}
+				return loginErrMsg{err: T("error_user_not_found", lang)}
 			}
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") || strings.Contains(errMsg, "no such host") {
-				return loginErrMsg{err: "Gagal terhubung ke server"}
+				return loginErrMsg{err: T("error_network", lang)}
 			}
 			if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "Timeout") {
-				return loginErrMsg{err: "Gagal terhubung ke server"}
+				return loginErrMsg{err: T("error_network", lang)}
 			}
 			return loginErrMsg{err: errMsg}
 		}
@@ -121,28 +121,28 @@ func (l *loginScreen) Update(msg tea.Msg) (*loginScreen, tea.Cmd) {
 
 				// Validate.
 				if phone == "" {
-					l.errMsg = "Nomor HP wajib diisi"
+					l.errMsg = l.session.T("error_phone_required")
 					return l, nil
 				}
 				if pin == "" {
-					l.errMsg = "PIN wajib diisi"
+					l.errMsg = l.session.T("error_pin_required")
 					return l, nil
 				}
 
 				// Basic phone validation.
 				cleanPhone := strings.TrimPrefix(phone, "+")
 				if !strings.HasPrefix(cleanPhone, types.PhonePrefix08) && !strings.HasPrefix(cleanPhone, types.PhonePrefix62) {
-					l.errMsg = "Format nomor HP tidak valid"
+					l.errMsg = l.session.T("error_invalid_phone_format")
 					return l, nil
 				}
 				if len(cleanPhone) < types.PhoneMinLength || len(cleanPhone) > TUIPhoneMaxLength {
-					l.errMsg = "Format nomor HP tidak valid"
+					l.errMsg = l.session.T("error_invalid_phone_format")
 					return l, nil
 				}
 
 				l.errMsg = ""
 				l.loading = true
-				return l, loginCmd(cleanPhone, pin)
+				return l, loginCmd(cleanPhone, pin, l.session.Lang())
 			}
 			return l, nil
 
@@ -202,10 +202,12 @@ func (l *loginScreen) updateFocus() {
 func (l *loginScreen) View() string {
 	var b strings.Builder
 
+	lang := l.session.Lang()
+
 	// Title.
-	b.WriteString(TitleStyle.Render("Senpay"))
+	b.WriteString(TitleStyle.Render(T("app_title", lang)))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render("Masuk ke akun Anda"))
+	b.WriteString(SubtitleStyle.Render(T("login_subtitle", lang)))
 	b.WriteString("\n\n")
 
 	// Error message.
@@ -215,7 +217,7 @@ func (l *loginScreen) View() string {
 	}
 
 	// Phone input.
-	b.WriteString(InputPromptStyle.Render("Nomor HP"))
+	b.WriteString(InputPromptStyle.Render(T("phone_label", lang)))
 	b.WriteString("\n")
 	if l.focusIndex == 0 {
 		b.WriteString(FocusedInputStyle.Render(l.phoneInput.View()))
@@ -225,7 +227,7 @@ func (l *loginScreen) View() string {
 	b.WriteString("\n")
 
 	// PIN input.
-	b.WriteString(InputPromptStyle.Render("PIN"))
+	b.WriteString(InputPromptStyle.Render(T("pin_label", lang)))
 	b.WriteString("\n")
 	if l.focusIndex == 1 {
 		b.WriteString(FocusedInputStyle.Render(l.pinInput.View()))
@@ -236,16 +238,16 @@ func (l *loginScreen) View() string {
 
 	// Login button.
 	if l.loading {
-		b.WriteString(ButtonStyle.Render("Memproses..."))
+		b.WriteString(ButtonStyle.Render(T("button_loading", lang)))
 	} else if l.focusIndex == 2 {
-		b.WriteString(FocusedButtonStyle.Render("Masuk"))
+		b.WriteString(FocusedButtonStyle.Render(T("button_login", lang)))
 	} else {
-		b.WriteString(ButtonStyle.Render("Masuk"))
+		b.WriteString(ButtonStyle.Render(T("button_login", lang)))
 	}
 	b.WriteString("\n\n")
 
 	// Help text.
-	b.WriteString(HelpStyle.Render("Tab: pindah field • Enter: masuk • Ctrl+C: keluar"))
+	b.WriteString(HelpStyle.Render(T("help_login", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }

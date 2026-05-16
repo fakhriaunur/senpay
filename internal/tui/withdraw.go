@@ -45,10 +45,10 @@ type withdrawScreen struct {
 
 // newWithdrawScreen creates a new withdraw screen.
 func newWithdrawScreen(session *Session) *withdrawScreen {
-	amount := NewTextInput("Jumlah (Rp)", true, false)
+	amount := NewTextInput(session.T("withdraw_amount_label"), true, false)
 	amount.Prompt = "Rp "
 
-	bank := NewTextInput("No. Rekening (10-16 digit)", false, false)
+	bank := NewTextInput(session.T("bank_account_label")+" (10-16 digit)", false, false)
 
 	return &withdrawScreen{
 		session:     session,
@@ -73,31 +73,31 @@ type withdrawErrMsg struct {
 }
 
 // withdrawCmd performs the withdraw API call.
-func withdrawCmd(token, idempotencyKey string, amountSen int64, bankAccount string) tea.Cmd {
+func withdrawCmd(token, idempotencyKey string, amountSen int64, bankAccount string, lang string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := PostWithdraw(token, idempotencyKey, amountSen, bankAccount)
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "Saldo tidak cukup") {
-				return withdrawErrMsg{err: "Saldo tidak mencukupi"}
+				return withdrawErrMsg{err: T("error_insufficient_balance", lang)}
 			}
 			if strings.Contains(errMsg, "Melebihi batas transaksi") {
-				return withdrawErrMsg{err: "Melebihi batas transaksi"}
+				return withdrawErrMsg{err: T("error_exceeds_limit", lang)}
 			}
 			if strings.Contains(errMsg, "Jumlah tidak valid") {
-				return withdrawErrMsg{err: "Jumlah tidak valid"}
+				return withdrawErrMsg{err: T("error_invalid_amount", lang)}
 			}
 			if strings.Contains(errMsg, "BANK_TIMEOUT") || strings.Contains(errMsg, "Bank timeout") {
-				return withdrawErrMsg{err: "Bank tidak merespon, dana dikembalikan"}
+				return withdrawErrMsg{err: T("error_bank_timeout", lang)}
 			}
 			if strings.Contains(errMsg, "BANK_REJECTION") || strings.Contains(errMsg, "Bank menolak") {
-				return withdrawErrMsg{err: "Bank menolak permintaan tarik tunai"}
+				return withdrawErrMsg{err: T("error_bank_rejection", lang)}
 			}
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") {
-				return withdrawErrMsg{err: "Gagal terhubung ke server"}
+				return withdrawErrMsg{err: T("error_network", lang)}
 			}
 			if strings.Contains(errMsg, "timeout") {
-				return withdrawErrMsg{err: "Bank tidak merespon, dana dikembalikan"}
+				return withdrawErrMsg{err: T("error_bank_timeout", lang)}
 			}
 			return withdrawErrMsg{err: errMsg}
 		}
@@ -173,30 +173,30 @@ func (w *withdrawScreen) updateForm(msg tea.KeyMsg) (*withdrawScreen, tea.Cmd) {
 			amountRaw := filterDigits(w.amountInput.Value())
 
 			if amountRaw == "" || amountRaw == "0" {
-				w.errMsg = "Jumlah penarikan wajib diisi"
+				w.errMsg = w.session.T("error_amount_required_withdraw")
 				return w, nil
 			}
 			amountSen, err := parseAmountSen(amountRaw)
 			if err != nil || amountSen <= 0 {
-				w.errMsg = "Jumlah tidak valid"
+				w.errMsg = w.session.T("error_invalid_amount")
 				return w, nil
 			}
 			if amountSen < DefaultTUIMinAmountSen {
-				w.errMsg = "Minimal penarikan Rp 100"
+				w.errMsg = w.session.T("error_min_withdraw")
 				return w, nil
 			}
 			if amountSen > w.session.BalanceSen {
-				w.errMsg = "Saldo tidak mencukupi"
+				w.errMsg = w.session.T("error_insufficient_balance")
 				return w, nil
 			}
 
 			bankAccount := filterDigits(w.bankInput.Value())
 			if bankAccount == "" {
-				w.errMsg = "Nomor rekening wajib diisi"
+				w.errMsg = w.session.T("error_bank_account_required")
 				return w, nil
 			}
 			if len(bankAccount) < 10 || len(bankAccount) > 16 {
-				w.errMsg = "Nomor rekening harus 10-16 digit"
+				w.errMsg = w.session.T("error_invalid_bank_account")
 				return w, nil
 			}
 
@@ -261,7 +261,7 @@ func (w *withdrawScreen) updateConfirm(msg tea.KeyMsg) (*withdrawScreen, tea.Cmd
 			// Confirm withdraw.
 			idempotencyKey := uuid.Must(uuid.NewV7()).String()
 			w.state = withdrawStateLoading
-			return w, withdrawCmd(w.session.Token, idempotencyKey, w.amountSen, w.bankAccount)
+			return w, withdrawCmd(w.session.Token, idempotencyKey, w.amountSen, w.bankAccount, w.session.Lang())
 		}
 		// Cancel — return to form.
 		w.state = withdrawStateForm
@@ -324,17 +324,18 @@ func (w *withdrawScreen) View() string {
 
 func (w *withdrawScreen) renderForm() string {
 	var b strings.Builder
+	lang := w.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Tarik Tunai / Withdraw"))
+	b.WriteString(TitleStyle.Render(T("title_withdraw", lang)))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render("Tarik saldo ke rekening bank"))
+	b.WriteString(SubtitleStyle.Render(T("subtitle_withdraw", lang)))
 	b.WriteString("\n\n")
 
 	// Show current balance.
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorSecondary)).
-			Render(fmt.Sprintf("Saldo saat ini: %s", formatAmountSen(w.session.BalanceSen))),
+			Render(fmt.Sprintf(T("current_balance_fmt", lang), formatAmountSen(w.session.BalanceSen))),
 	))
 	b.WriteString("\n\n")
 
@@ -344,7 +345,7 @@ func (w *withdrawScreen) renderForm() string {
 	}
 
 	// Amount input.
-	b.WriteString(InputPromptStyle.Render("Jumlah Penarikan (Rp)"))
+	b.WriteString(InputPromptStyle.Render(T("withdraw_amount_label", lang)))
 	b.WriteString("\n")
 	amountVal := filterDigits(w.amountInput.Value())
 	amountDisplay := ""
@@ -359,7 +360,7 @@ func (w *withdrawScreen) renderForm() string {
 	b.WriteString("\n")
 
 	// Bank account input.
-	b.WriteString(InputPromptStyle.Render("No. Rekening Tujuan"))
+	b.WriteString(InputPromptStyle.Render(T("bank_account_label", lang)))
 	b.WriteString("\n")
 	if w.focusIndex == 1 {
 		b.WriteString(FocusedInputStyle.Render(w.bankInput.View()))
@@ -370,21 +371,22 @@ func (w *withdrawScreen) renderForm() string {
 
 	// Submit button.
 	if w.focusIndex == 2 {
-		b.WriteString(FocusedButtonStyle.Render("Tarik Tunai"))
+		b.WriteString(FocusedButtonStyle.Render(T("button_withdraw", lang)))
 	} else {
-		b.WriteString(ButtonStyle.Render("Tarik Tunai"))
+		b.WriteString(ButtonStyle.Render(T("button_withdraw", lang)))
 	}
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("Tab: pindah field • Enter: lanjut • Esc: kembali"))
+	b.WriteString(HelpStyle.Render(T("help_withdraw_form", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (w *withdrawScreen) renderConfirm() string {
 	var b strings.Builder
+	lang := w.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Konfirmasi Penarikan"))
+	b.WriteString(TitleStyle.Render(T("title_confirm_withdraw", lang)))
 	b.WriteString("\n\n")
 
 	confStyle := lipgloss.NewStyle().
@@ -398,17 +400,17 @@ func (w *withdrawScreen) renderConfirm() string {
 	maskedAccount := "••••" + w.bankAccount[len(w.bankAccount)-4:]
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		InputPromptStyle.Render("Jumlah Penarikan"),
+		InputPromptStyle.Render(T("withdraw_amount_label", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render(formatAmountSen(w.amountSen)),
 		"",
-		InputPromptStyle.Render("Rekening Tujuan"),
+		InputPromptStyle.Render(T("label_bank_account", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(maskedAccount),
 		"",
-		InputPromptStyle.Render("Bank"),
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render("BRI"),
+		InputPromptStyle.Render(T("label_bank_name", lang)),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(T("bank_name_bri", lang)),
 		"",
-		InputPromptStyle.Render("Estimasi Tiba"),
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render("1 x 24 jam"),
+		InputPromptStyle.Render(T("label_estimate", lang)),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(T("estimate_time", lang)),
 	)
 
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -417,18 +419,20 @@ func (w *withdrawScreen) renderConfirm() string {
 	b.WriteString("\n\n")
 
 	// Buttons.
+	confirmText := T("button_confirm", lang)
+	cancelText := T("button_cancel", lang)
 	var confirmLabel string
 	if w.confirmFocus == 0 {
-		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render("✓ Konfirmasi")
+		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render(confirmText)
 	} else {
-		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorHighlight)).Padding(0, 2).Render("✓ Konfirmasi")
+		confirmLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorHighlight)).Padding(0, 2).Render(confirmText)
 	}
 
 	var cancelLabel string
 	if w.confirmFocus == 1 {
-		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorError)).Padding(0, 2).Render("✕ Batal")
+		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorError)).Padding(0, 2).Render(cancelText)
 	} else {
-		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render("✕ Batal")
+		cancelLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render(cancelText)
 	}
 
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -436,21 +440,22 @@ func (w *withdrawScreen) renderConfirm() string {
 	))
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("Enter: konfirmasi • Tab: pilih • Esc: batal"))
+	b.WriteString(HelpStyle.Render(T("help_confirm_withdraw", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (w *withdrawScreen) renderLoading() string {
 	var b strings.Builder
+	lang := w.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Tarik Tunai"))
+	b.WriteString(TitleStyle.Render(T("title_withdraw", lang)))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorPrimary)).
 			Bold(true).
-			Render("Memproses penarikan..."),
+			Render(T("loading_withdraw", lang)),
 	))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -462,8 +467,9 @@ func (w *withdrawScreen) renderLoading() string {
 
 func (w *withdrawScreen) renderSuccess() string {
 	var b strings.Builder
+	lang := w.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Penarikan Berhasil"))
+	b.WriteString(TitleStyle.Render(T("title_success_withdraw", lang)))
 	b.WriteString("\n\n")
 
 	successStyle := lipgloss.NewStyle().
@@ -474,12 +480,12 @@ func (w *withdrawScreen) renderSuccess() string {
 		Align(lipgloss.Center)
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render("✓ Penarikan berhasil!"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(T("success_withdraw", lang)),
 		"",
-		InputPromptStyle.Render("Jumlah"),
+		InputPromptStyle.Render(T("label_amount", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render(formatAmountSen(w.amountSen)),
 		"",
-		InputPromptStyle.Render("Sisa Saldo"),
+		InputPromptStyle.Render(T("label_remaining_balance", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(w.newBalance)),
 		"",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Render(w.createdAt),
@@ -489,15 +495,16 @@ func (w *withdrawScreen) renderSuccess() string {
 		successStyle.Render(content),
 	))
 	b.WriteString("\n\n")
-	b.WriteString(HelpStyle.Render("Enter/Esc: kembali ke Dashboard"))
+	b.WriteString(HelpStyle.Render(T("help_success", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (w *withdrawScreen) renderError() string {
 	var b strings.Builder
+	lang := w.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Penarikan Gagal"))
+	b.WriteString(TitleStyle.Render(T("title_error_withdraw", lang)))
 	b.WriteString("\n\n")
 
 	errorStyle := lipgloss.NewStyle().
@@ -508,7 +515,7 @@ func (w *withdrawScreen) renderError() string {
 		Align(lipgloss.Center)
 
 	errContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render("✕ Penarikan gagal"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render(T("error_withdraw", lang)),
 		"",
 		ErrorStyle.Render(w.errMsg),
 	)
@@ -519,9 +526,9 @@ func (w *withdrawScreen) renderError() string {
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render("Enter: Coba Lagi"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render(T("button_retry", lang)),
 			"  ",
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render("Esc: Kembali"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render(T("button_back", lang)),
 		),
 	))
 

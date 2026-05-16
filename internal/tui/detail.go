@@ -51,35 +51,35 @@ func (d *detailScreen) Update(msg tea.Msg) (*detailScreen, tea.Cmd) {
 // navigateToHistoryMsg signals parent to navigate back to history list.
 type navigateToHistoryMsg struct{}
 
-// txTypeDisplay returns the Indonesian display name for a transaction type.
-func txTypeDisplay(txType string) string {
+// txTypeDisplay returns the display name for a transaction type in the given language.
+func txTypeDisplay(txType, lang string) string {
 	switch types.TxType(txType) {
 	case types.TxTypeTransfer:
-		return "Transfer"
+		return T("type_transfer", lang)
 	case types.TxTypeTopup:
-		return "Top Up"
+		return T("type_topup", lang)
 	case types.TxTypeWithdraw:
-		return "Withdraw"
+		return T("type_withdraw", lang)
 	case types.TxTypeFee:
-		return "Biaya"
+		return T("type_fee", lang)
 	default:
 		return txType
 	}
 }
 
-// statusDisplay returns the Indonesian display name for a status.
-func statusDisplay(status string) string {
+// statusDisplay returns the display name for a status in the given language.
+func statusDisplay(status, lang string) string {
 	switch types.TxStatus(status) {
 	case types.TxStatusCommitted:
-		return "Berhasil"
+		return T("status_committed", lang)
 	case types.TxStatusPending:
-		return "Pending"
+		return T("status_pending", lang)
 	case types.TxStatusFailed:
-		return "Gagal"
+		return T("status_failed", lang)
 	case types.TxStatusCompensated:
-		return "Dikembalikan"
+		return T("status_compensated", lang)
 	case types.TxStatusTimeout:
-		return "Timeout"
+		return T("status_timeout", lang)
 	default:
 		return status
 	}
@@ -112,8 +112,9 @@ func isCredit(txType string) bool {
 
 func (d *detailScreen) View() string {
 	var b strings.Builder
+	lang := d.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Detail Transaksi"))
+	b.WriteString(TitleStyle.Render(T("title_detail", lang)))
 	b.WriteString("\n\n")
 
 	tx := d.tx
@@ -136,24 +137,24 @@ func (d *detailScreen) View() string {
 	}
 
 	rows = append(rows,
-		labelValue("ID Transaksi", tx.ID),
+		labelValue(T("label_tx_id", lang), tx.ID),
 		"",
-		labelValue("Tipe", txTypeDisplay(tx.TxType)),
+		labelValue(T("label_type", lang), txTypeDisplay(tx.TxType, lang)),
 		"",
-		labelValue("Jumlah", amountPrefix+formatAmountSen(tx.AmountSen), lipgloss.Color(amountColor)),
+		labelValue(T("label_amount", lang), amountPrefix+formatAmountSen(tx.AmountSen), lipgloss.Color(amountColor)),
 		"",
 	)
 	if tx.CounterpartyPhone != "" {
-		rows = append(rows, labelValue("Counterparty", tx.CounterpartyPhone), "")
+		rows = append(rows, labelValue(T("label_counterparty", lang), tx.CounterpartyPhone), "")
 	}
 	rows = append(rows,
-		labelValue("Status", statusDisplay(tx.Status), lipgloss.Color(statusColor(tx.Status))),
+		labelValue(T("label_status", lang), statusDisplay(tx.Status, lang), lipgloss.Color(statusColor(tx.Status))),
 		"",
-		labelValue("Waktu", formatTime(tx.CreatedAt)),
+		labelValue(T("label_time", lang), formatTime(tx.CreatedAt)),
 		"",
 	)
 	if tx.CommittedAt != "" {
-		rows = append(rows, labelValue("Diproses", formatTime(tx.CommittedAt)), "")
+		rows = append(rows, labelValue(T("label_processed", lang), formatTime(tx.CommittedAt)), "")
 	}
 
 	detail := lipgloss.JoinVertical(lipgloss.Left, rows...)
@@ -162,7 +163,7 @@ func (d *detailScreen) View() string {
 		detailStyle.Render(detail),
 	))
 	b.WriteString("\n\n")
-	b.WriteString(HelpStyle.Render("Esc: kembali ke daftar"))
+	b.WriteString(HelpStyle.Render(T("help_detail", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }

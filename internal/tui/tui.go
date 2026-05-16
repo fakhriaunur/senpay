@@ -25,6 +25,7 @@ const (
 	screenDetail
 	screenTopup
 	screenWithdraw
+	screenSettings
 )
 
 // minimum terminal dimensions.
@@ -50,6 +51,7 @@ type Model struct {
 	detail       *detailScreen
 	topup        *topupScreen
 	withdraw     *withdrawScreen
+	settings     *settingsScreen
 	quitting     bool
 	showingHelp  bool
 	windowWidth  int
@@ -137,6 +139,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh history when coming back from detail.
 		m.history = newHistoryScreen(m.session)
 		return m, m.history.Init()
+
+	case navigateToSettingsMsg:
+		m.current = screenSettings
+		m.settings = newSettingsScreen(m.session)
+		return m, nil
 	}
 
 	// Delegate to the active screen.
@@ -155,9 +162,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTopup(msg)
 	case screenWithdraw:
 		return m.updateWithdraw(msg)
+	case screenSettings:
+		return m.updateSettings(msg)
 	}
 
 	return m, nil
+}
+
+// updateSettings handles messages for the settings screen.
+func (m *Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.settings, cmd = m.settings.Update(msg)
+	return m, cmd
 }
 
 // updateLogin handles messages for the login screen.
@@ -280,12 +296,16 @@ func (m *Model) View() string {
 		return m.topup.View()
 	case screenWithdraw:
 		return m.withdraw.View()
+	case screenSettings:
+		return m.settings.View()
 	}
 	return ""
 }
 
 // renderMinSizeWarning renders a minimum size warning overlay.
 func (m *Model) renderMinSizeWarning() string {
+	lang := m.session.Lang()
+
 	warningStyle := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
 		BorderForeground(lipgloss.Color(colorError)).
@@ -294,12 +314,12 @@ func (m *Model) renderMinSizeWarning() string {
 		Align(lipgloss.Center)
 
 	warningContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorError)).Render("Ukuran Terminal Terlalu Kecil"),
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorError)).Render(T("min_size_warning", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render("Minimal ukuran: 80x24"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Render(T("min_size_label", lang)),
 		"",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(
-			fmt.Sprintf("Ukuran saat ini: %dx%d", m.windowWidth, m.windowHeight),
+			fmt.Sprintf(T("current_size_fmt", lang), m.windowWidth, m.windowHeight),
 		),
 	)
 
@@ -312,6 +332,8 @@ func (m *Model) renderMinSizeWarning() string {
 
 // renderQuitConfirmation renders a quit confirmation dialog.
 func (m *Model) renderQuitConfirmation() string {
+	lang := m.session.Lang()
+
 	// Create a centered confirmation dialog.
 	dialogStyle := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
@@ -321,10 +343,10 @@ func (m *Model) renderQuitConfirmation() string {
 		Align(lipgloss.Center)
 
 	dialogContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorError)).Render("Yakin ingin keluar?"),
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorError)).Render(T("quit_title", lang)),
 		"",
-		"Tekan Ctrl+C lagi untuk keluar",
-		"atau tombol lain untuk batal",
+		T("quit_confirm", lang),
+		T("quit_cancel", lang),
 	)
 
 	return lipgloss.NewStyle().
@@ -336,6 +358,8 @@ func (m *Model) renderQuitConfirmation() string {
 
 // renderHelpOverlay renders the help keyboard shortcuts overlay.
 func (m *Model) renderHelpOverlay() string {
+	lang := m.session.Lang()
+
 	helpStyle := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
 		BorderForeground(lipgloss.Color(colorPrimary)).
@@ -344,26 +368,26 @@ func (m *Model) renderHelpOverlay() string {
 		Align(lipgloss.Left)
 
 	helpContent := lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary)).Width(50).Align(lipgloss.Center).Render("⌨ Bantuan Keyboard"),
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary)).Width(50).Align(lipgloss.Center).Render(T("help_title", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Navigasi Global")),
-		helpItem("Esc", "Kembali ke layar sebelumnya"),
-		helpItem("Tab ↑↓", "Pindah field input"),
-		helpItem("Enter", "Konfirmasi/pilih"),
-		helpItem("Ctrl+C", "Keluar dari aplikasi"),
-		helpItem("?", "Tampilkan bantuan ini"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine(T("help_nav_global", lang))),
+		helpItem("Esc", T("help_esc", lang)),
+		helpItem("Tab ↑↓", T("help_tab", lang)),
+		helpItem("Enter", T("help_enter", lang)),
+		helpItem("Ctrl+C", T("help_ctrlc", lang)),
+		helpItem("?", T("help_toggle_help", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Pintasan Dashboard")),
-		helpItem("1 / T", "Transfer"),
-		helpItem("2 / U", "Top Up"),
-		helpItem("3 / H", "Riwayat"),
-		helpItem("4 / W", "Tarik Tunai"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine(T("help_dash_shortcuts", lang))),
+		helpItem("1 / T", T("help_dash_transfer", lang)),
+		helpItem("2 / U", T("help_dash_topup", lang)),
+		helpItem("3 / H", T("help_dash_history", lang)),
+		helpItem("4 / W", T("help_dash_withdraw", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine("Pintasan Top Up")),
-		helpItem("← →", "Pilih metode pembayaran"),
-		helpItem("C", "Salin nomor VA"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorWhite)).Width(50).Render(dashLine(T("help_topup_shortcuts", lang))),
+		helpItem("← →", T("help_topup_method_sel", lang)),
+		helpItem("C", T("help_topup_copy_va", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Width(50).Align(lipgloss.Center).Render("Tekan ? atau Esc untuk menutup"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Width(50).Align(lipgloss.Center).Render(T("help_close", lang)),
 	)
 
 	return lipgloss.NewStyle().

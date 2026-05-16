@@ -64,7 +64,7 @@ type topupScreen struct {
 
 // newTopupScreen creates a new top-up screen.
 func newTopupScreen(session *Session) *topupScreen {
-	amount := NewTextInput("Jumlah (Rp)", true, false)
+	amount := NewTextInput(session.T("amount_label"), true, false)
 	amount.Prompt = "Rp "
 
 	return &topupScreen{
@@ -94,22 +94,22 @@ type topupErrMsg struct {
 type topupTickMsg struct{}
 
 // topupCmd performs the top-up API call.
-func topupCmd(token, idempotencyKey string, amountSen int64) tea.Cmd {
+func topupCmd(token, idempotencyKey string, amountSen int64, lang string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := PostTopup(token, idempotencyKey, amountSen)
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "Melebihi batas transaksi") {
-				return topupErrMsg{err: "Melebihi batas transaksi"}
+				return topupErrMsg{err: T("error_exceeds_limit", lang)}
 			}
 			if strings.Contains(errMsg, "Jumlah tidak valid") {
-				return topupErrMsg{err: "Jumlah tidak valid"}
+				return topupErrMsg{err: T("error_invalid_amount", lang)}
 			}
 			if strings.Contains(errMsg, "network error") || strings.Contains(errMsg, "connection refused") {
-				return topupErrMsg{err: "Gagal terhubung ke server"}
+				return topupErrMsg{err: T("error_network", lang)}
 			}
 			if strings.Contains(errMsg, "timeout") {
-				return topupErrMsg{err: "Koneksi timeout, silakan coba lagi"}
+				return topupErrMsg{err: T("error_timeout", lang)}
 			}
 			return topupErrMsg{err: errMsg}
 		}
@@ -214,16 +214,16 @@ func (t *topupScreen) updateForm(msg tea.KeyMsg) (*topupScreen, tea.Cmd) {
 			// Validate and submit.
 			amountRaw := filterDigits(t.amountInput.Value())
 			if amountRaw == "" || amountRaw == "0" {
-				t.errMsg = "Jumlah top-up wajib diisi"
+				t.errMsg = t.session.T("error_amount_required")
 				return t, nil
 			}
 			amountSen, err := parseAmountSen(amountRaw)
 			if err != nil || amountSen <= 0 {
-				t.errMsg = "Jumlah tidak valid"
+				t.errMsg = t.session.T("error_invalid_amount")
 				return t, nil
 			}
 			if amountSen < DefaultTUIMinAmountSen {
-				t.errMsg = "Minimal top-up Rp 100"
+				t.errMsg = t.session.T("error_min_topup")
 				return t, nil
 			}
 
@@ -231,7 +231,7 @@ func (t *topupScreen) updateForm(msg tea.KeyMsg) (*topupScreen, tea.Cmd) {
 			t.amountSen = amountSen
 			t.state = topupStateLoading
 			idempotencyKey := uuid.Must(uuid.NewV7()).String()
-			return t, topupCmd(t.session.Token, idempotencyKey, amountSen)
+			return t, topupCmd(t.session.Token, idempotencyKey, amountSen, t.session.Lang())
 		}
 		return t, nil
 
@@ -340,10 +340,11 @@ func (t *topupScreen) View() string {
 
 func (t *topupScreen) renderForm() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Top Up / Isi Saldo"))
+	b.WriteString(TitleStyle.Render(T("title_topup", lang)))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render("Isi saldo dompet digital Anda"))
+	b.WriteString(SubtitleStyle.Render(T("subtitle_topup", lang)))
 	b.WriteString("\n\n")
 
 	if t.errMsg != "" {
@@ -352,7 +353,7 @@ func (t *topupScreen) renderForm() string {
 	}
 
 	// Amount input.
-	b.WriteString(InputPromptStyle.Render("Jumlah (Rp)"))
+	b.WriteString(InputPromptStyle.Render(T("amount_label", lang)))
 	b.WriteString("\n")
 	amountVal := filterDigits(t.amountInput.Value())
 	amountDisplay := ""
@@ -367,10 +368,12 @@ func (t *topupScreen) renderForm() string {
 	b.WriteString("\n\n")
 
 	// Payment method selector.
-	b.WriteString(InputPromptStyle.Render("Metode Pembayaran"))
+	b.WriteString(InputPromptStyle.Render(T("label_payment_method", lang)))
 	b.WriteString("\n")
 	var methods []string
-	for i, method := range topupMethods {
+	methodKeys := []string{"method_va_bri", "method_bank_bca"}
+	for i, methodKey := range methodKeys {
+		method := T(methodKey, lang)
 		if i == t.methodIndex {
 			selected := "◉"
 			if t.focusIndex == 1 {
@@ -405,27 +408,28 @@ func (t *topupScreen) renderForm() string {
 
 	// Submit button.
 	if t.focusIndex == 2 {
-		b.WriteString(FocusedButtonStyle.Render("Isi Saldo"))
+		b.WriteString(FocusedButtonStyle.Render(T("button_topup", lang)))
 	} else {
-		b.WriteString(ButtonStyle.Render("Isi Saldo"))
+		b.WriteString(ButtonStyle.Render(T("button_topup", lang)))
 	}
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("← →: pilih metode • Tab: pindah • Enter: lanjut • Esc: kembali"))
+	b.WriteString(HelpStyle.Render(T("help_topup", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *topupScreen) renderLoading() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Top Up"))
+	b.WriteString(TitleStyle.Render(T("title_topup", lang)))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorPrimary)).
 			Bold(true).
-			Render("Memproses top-up..."),
+			Render(T("loading_topup", lang)),
 	))
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
@@ -437,8 +441,9 @@ func (t *topupScreen) renderLoading() string {
 
 func (t *topupScreen) renderVADisplay() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Nomor Virtual Account"))
+	b.WriteString(TitleStyle.Render(T("title_va", lang)))
 	b.WriteString("\n\n")
 
 	vaStyle := lipgloss.NewStyle().
@@ -482,18 +487,18 @@ func (t *topupScreen) renderVADisplay() string {
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(fmt.Sprintf("Bank %s", bankName)),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(fmt.Sprintf(T("label_bank", lang), bankName)),
 		"",
-		InputPromptStyle.Render("Nomor Virtual Account"),
+		InputPromptStyle.Render(T("label_va_number", lang)),
 		vaLargeStyle.Render(vaDisplay),
 		"",
 		lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color(colorMuted)).
-			Render("Salin nomor VA untuk melakukan pembayaran"),
+			Render(T("va_instruction", lang)),
 		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(fmt.Sprintf("Jumlah: %s", formatAmountSen(t.amountSen))),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSecondary)).Render(fmt.Sprintf("%s: %s", T("label_amount", lang), formatAmountSen(t.amountSen))),
 		"",
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Render("Berlaku hingga: "),
+			lipgloss.NewStyle().Foreground(lipgloss.Color(colorMuted)).Render(T("va_expires", lang)+" "),
 			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(countdownColor)).Render(remaining),
 		),
 	)
@@ -521,22 +526,23 @@ func (t *topupScreen) renderVADisplay() string {
 
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			copyStyle.Render("📋 Copy VA"),
+			copyStyle.Render(T("button_copy_va", lang)),
 			"  ",
-			backStyle.Render("Esc: Kembali"),
+			backStyle.Render(T("button_back_va", lang)),
 		),
 	))
 	b.WriteString("\n\n")
 
-	b.WriteString(HelpStyle.Render("C: copy VA • Esc: kembali"))
+	b.WriteString(HelpStyle.Render(T("help_va", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *topupScreen) renderSuccess() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Top Up Berhasil"))
+	b.WriteString(TitleStyle.Render(T("title_success_topup", lang)))
 	b.WriteString("\n\n")
 
 	successStyle := lipgloss.NewStyle().
@@ -547,12 +553,12 @@ func (t *topupScreen) renderSuccess() string {
 		Align(lipgloss.Center)
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render("✓ Top-up berhasil!"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(T("success_topup", lang)),
 		"",
-		InputPromptStyle.Render("Jumlah"),
+		InputPromptStyle.Render(T("label_amount", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(t.amountSen)),
 		"",
-		InputPromptStyle.Render("Saldo Baru"),
+		InputPromptStyle.Render(T("label_new_balance", lang)),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(colorSuccess)).Bold(true).Render(formatAmountSen(t.newBalance)),
 	)
 
@@ -560,15 +566,16 @@ func (t *topupScreen) renderSuccess() string {
 		successStyle.Render(content),
 	))
 	b.WriteString("\n\n")
-	b.WriteString(HelpStyle.Render("Enter/Esc: kembali ke Dashboard"))
+	b.WriteString(HelpStyle.Render(T("help_success", lang)))
 
 	return lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(b.String())
 }
 
 func (t *topupScreen) renderError() string {
 	var b strings.Builder
+	lang := t.session.Lang()
 
-	b.WriteString(TitleStyle.Render("Top Up Gagal"))
+	b.WriteString(TitleStyle.Render(T("title_error_topup", lang)))
 	b.WriteString("\n\n")
 
 	errorStyle := lipgloss.NewStyle().
@@ -579,7 +586,7 @@ func (t *topupScreen) renderError() string {
 		Align(lipgloss.Center)
 
 	errContent := lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render("✕ Top-up gagal"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(colorError)).Bold(true).Render(T("error_topup", lang)),
 		"",
 		ErrorStyle.Render(t.errMsg),
 	)
@@ -590,9 +597,9 @@ func (t *topupScreen) renderError() string {
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Width(80).Align(lipgloss.Center).Render(
 		lipgloss.JoinHorizontal(lipgloss.Center,
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render("Enter: Coba Lagi"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorPrimary)).Padding(0, 2).Render(T("button_retry", lang)),
 			"  ",
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render("Esc: Kembali"),
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorWhite)).Background(lipgloss.Color(colorMuted)).Padding(0, 2).Render(T("button_back", lang)),
 		),
 	))
 
