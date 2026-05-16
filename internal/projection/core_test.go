@@ -143,17 +143,17 @@ func TestProjectBalances_AllStatuses(t *testing.T) {
 		status string
 		counts bool
 	}{
-		{"committed", true},
-		{"pending", false},
-		{"failed", false},
-		{"compensated", false},
-		{"", false},
+		{status: "committed", counts: true},
+		{status: "pending", counts: false},
+		{status: "failed", counts: false},
+		{status: "compensated", counts: false},
+		{status: "", counts: false},
 	}
 
 	for _, s := range statuses {
 		t.Run("status_"+s.status, func(t *testing.T) {
 			txLog := []TxEntry{
-				{Amount: 50000, SenderID: "other", ReceiverID: "user-1", Status: s.status},
+				{Amount: 50000, SenderID: "other", ReceiverID: "user-1", Status: types.TxStatus(s.status)},
 			}
 			got := ProjectBalances(txLog, "user-1")
 			if s.counts && got != 50000 {
@@ -197,9 +197,9 @@ func TestProperty_ProjectBalances_PendingAndFailedExcluded(t *testing.T) {
 			// Alternate between committed and non-committed.
 			isCommitted := rapid.IntRange(0, 1).Draw(t, "isCommitted") == 0
 			isCredit := rapid.IntRange(0, 1).Draw(t, "isCredit") == 0
-			status := "pending"
+			txStatus := types.TxStatusPending
 			if isCommitted {
-				status = "committed"
+				txStatus = types.TxStatusCommitted
 			}
 
 			var sender, receiver string
@@ -215,7 +215,7 @@ func TestProperty_ProjectBalances_PendingAndFailedExcluded(t *testing.T) {
 				Amount:     amount,
 				SenderID:   sender,
 				ReceiverID: receiver,
-				Status:     status,
+				Status:     txStatus,
 			}
 
 			if isCommitted {
@@ -252,9 +252,9 @@ func TestProperty_ProjectBalances_PendingFailedNeverAffect(t *testing.T) {
 			isCredit := rapid.IntRange(0, 1).Draw(t, "isCredit") == 0
 
 			if isCredit {
-				entries[i] = TxEntry{Amount: amount, SenderID: otherID, ReceiverID: userID, Status: status}
+				entries[i] = TxEntry{Amount: amount, SenderID: otherID, ReceiverID: userID, Status: types.TxStatus(status)}
 			} else {
-				entries[i] = TxEntry{Amount: amount, SenderID: userID, ReceiverID: otherID, Status: status}
+				entries[i] = TxEntry{Amount: amount, SenderID: userID, ReceiverID: otherID, Status: types.TxStatus(status)}
 			}
 		}
 
@@ -285,7 +285,7 @@ func TestProperty_ProjectBalances_UnrelatedEntriesIgnored(t *testing.T) {
 				Amount:     amount,
 				SenderID:   sender,
 				ReceiverID: receiver,
-				Status:     status,
+				Status:     types.TxStatus(status),
 			}
 		}
 

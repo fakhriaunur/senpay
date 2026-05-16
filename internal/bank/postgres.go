@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"senpay/internal/types"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -179,7 +181,7 @@ func (s *PostgresWithdrawStore) FindByIdempotencyKey(ctx context.Context, key st
 }
 
 // UpdateStatus updates the status and related timestamps of a withdraw record.
-func (s *PostgresWithdrawStore) UpdateStatus(ctx context.Context, id uuid.UUID, status string, failureReason *string, committedAt, reversedAt *time.Time) error {
+func (s *PostgresWithdrawStore) UpdateStatus(ctx context.Context, id uuid.UUID, status types.TxStatus, failureReason *string, committedAt, reversedAt *time.Time) error {
 	const query = `
 		UPDATE withdraw_records
 		SET status = $2, failure_reason = $3, committed_at = $4, reversed_at = $5

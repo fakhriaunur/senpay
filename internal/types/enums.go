@@ -159,3 +159,80 @@ func ParseKYCLevel(s string) (KYCLevel, error) {
 func (k KYCLevel) String() string {
 	return string(k)
 }
+
+// ────────────────────────────────────────────────────────────────
+// TxType — Transaction type
+// ────────────────────────────────────────────────────────────────
+
+// TxType represents the type of a financial transaction.
+// Valid values: topup, transfer, withdraw, fee.
+type TxType string
+
+const (
+	TxTypeTopup    TxType = "topup"
+	TxTypeTransfer TxType = "transfer"
+	TxTypeWithdraw TxType = "withdraw"
+	TxTypeFee      TxType = "fee"
+)
+
+// ParseTxType parses a string into a TxType.
+// Returns DomainError with code ErrCodeInvalidFormat for unknown values.
+func ParseTxType(s string) (TxType, error) {
+	switch s {
+	case string(TxTypeTopup):
+		return TxTypeTopup, nil
+	case string(TxTypeTransfer):
+		return TxTypeTransfer, nil
+	case string(TxTypeWithdraw):
+		return TxTypeWithdraw, nil
+	case string(TxTypeFee):
+		return TxTypeFee, nil
+	default:
+		return "", NewInvalidFormatError("transaction type", fmt.Sprintf("unknown type: %q", s))
+	}
+}
+
+// String returns the string representation of TxType.
+func (t TxType) String() string {
+	return string(t)
+}
+
+// ────────────────────────────────────────────────────────────────
+// TxStatus — Transaction status
+// ────────────────────────────────────────────────────────────────
+
+// TxStatus represents the processing status of a transaction.
+// Valid values: pending, committed, failed, compensated, timeout.
+type TxStatus string
+
+const (
+	TxStatusPending     TxStatus = "pending"
+	TxStatusCommitted   TxStatus = "committed"
+	TxStatusFailed      TxStatus = "failed"
+	TxStatusCompensated TxStatus = "compensated"
+	TxStatusTimeout     TxStatus = "timeout"
+)
+
+// ParseTxStatus parses a string into a TxStatus.
+// Returns DomainError with code ErrCodeInvalidFormat for unknown values.
+func ParseTxStatus(s string) (TxStatus, error) {
+	switch s {
+	case string(TxStatusPending):
+		return TxStatusPending, nil
+	case string(TxStatusCommitted):
+		return TxStatusCommitted, nil
+	case string(TxStatusFailed):
+		return TxStatusFailed, nil
+	case string(TxStatusCompensated):
+		return TxStatusCompensated, nil
+	case string(TxStatusTimeout):
+		return TxStatusTimeout, nil
+	default:
+		return "", NewInvalidFormatError("transaction status", fmt.Sprintf("unknown status: %q", s))
+	}
+}
+
+// String returns the string representation of TxStatus.
+func (s TxStatus) String() string {
+	return string(s)
+}

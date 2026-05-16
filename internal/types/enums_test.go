@@ -185,3 +185,86 @@ func TestParseEntryType(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTxType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    TxType
+		wantErr bool
+	}{
+		{name: "topup", input: "topup", want: TxTypeTopup, wantErr: false},
+		{name: "transfer", input: "transfer", want: TxTypeTransfer, wantErr: false},
+		{name: "withdraw", input: "withdraw", want: TxTypeWithdraw, wantErr: false},
+		{name: "fee", input: "fee", want: TxTypeFee, wantErr: false},
+		{name: "empty", input: "", wantErr: true},
+		{name: "unknown", input: "unknown", wantErr: true},
+		{name: "typo", input: "transfir", wantErr: true},
+		{name: "case_sensitive", input: "TOPUP", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTxType(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParseTxType(%q) expected error, got %v", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ParseTxType(%q) unexpected error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseTxType(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			if got.String() != tt.input {
+				t.Errorf("TxType.String() = %q, want %q", got.String(), tt.input)
+			}
+		})
+	}
+}
+
+func TestParseTxStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    TxStatus
+		wantErr bool
+	}{
+		{name: "pending", input: "pending", want: TxStatusPending, wantErr: false},
+		{name: "committed", input: "committed", want: TxStatusCommitted, wantErr: false},
+		{name: "failed", input: "failed", want: TxStatusFailed, wantErr: false},
+		{name: "compensated", input: "compensated", want: TxStatusCompensated, wantErr: false},
+		{name: "timeout", input: "timeout", want: TxStatusTimeout, wantErr: false},
+		{name: "empty", input: "", wantErr: true},
+		{name: "unknown", input: "unknown", wantErr: true},
+		{name: "typo", input: "pendng", wantErr: true},
+		{name: "case_sensitive", input: "COMMITTED", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTxStatus(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParseTxStatus(%q) expected error, got %v", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ParseTxStatus(%q) unexpected error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseTxStatus(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			if got.String() != tt.input {
+				t.Errorf("TxStatus.String() = %q, want %q", got.String(), tt.input)
+			}
+		})
+	}
+}

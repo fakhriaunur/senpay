@@ -234,7 +234,7 @@ func (s *Service) Topup(ctx context.Context, userID uuid.UUID, req TopupHTTPRequ
 		TxID:      txLogEntry.ID,
 		VANumber:  coreResult.VANumber,
 		AmountSen: req.AmountSen,
-		Status:    types.TxStatusPending,
+		Status:    types.TxStatusPending.String(),
 		ExpiresAt: coreResult.ExpiresAt,
 		CreatedAt: now,
 	}
@@ -499,7 +499,7 @@ func (s *Service) Withdraw(ctx context.Context, userID uuid.UUID, req WithdrawHT
 		TxID:        txLogID,
 		AmountSen:   req.AmountSen,
 		BankAccount: req.BankAccount,
-		Status:      types.TxStatusPending,
+		Status:      types.TxStatusPending.String(),
 		CreatedAt:   now,
 	}
 
@@ -551,7 +551,7 @@ func (s *Service) Withdraw(ctx context.Context, userID uuid.UUID, req WithdrawHT
 		// Publish NATS event.
 		s.publishWithdrawEvent(ctx, userID, txLogID, req.AmountSen, now)
 
-		response.Status = types.TxStatusCommitted
+		response.Status = types.TxStatusCommitted.String()
 		s.cacheWithdrawResult(ctx, req.IdempotencyKey, response)
 		return response, nil
 	}
@@ -581,7 +581,7 @@ func (s *Service) reverseWithdraw(ctx context.Context, userID uuid.UUID, amountS
 	now := time.Now().UTC()
 
 	// Determine status based on bank error type.
-	var newStatus string
+	var newStatus types.TxStatus
 	var failureReason string
 	switch bankErr.Code {
 	case ErrTimeout.Code:
@@ -728,7 +728,7 @@ func (s *Service) updateBalance(ctx context.Context, tx pgx.Tx, userID uuid.UUID
 }
 
 // updateTxLogStatus updates a tx_log entry's status within a transaction.
-func (s *Service) updateTxLogStatus(ctx context.Context, tx pgx.Tx, txLogID uuid.UUID, status string, failureReason *string, committedAt *time.Time) error {
+func (s *Service) updateTxLogStatus(ctx context.Context, tx pgx.Tx, txLogID uuid.UUID, status types.TxStatus, failureReason *string, committedAt *time.Time) error {
 	const query = `
 		UPDATE tx_log
 		SET status = $2, failure_reason = $3, committed_at = $4
@@ -821,7 +821,7 @@ func (s *Service) publishWithdrawEvent(ctx context.Context, userID uuid.UUID, tx
 		TxID:      txLogID,
 		UserID:    userID,
 		AmountSen: amountSen,
-		Status:    types.TxStatusCommitted,
+		Status:    types.TxStatusCommitted.String(),
 		CreatedAt: now,
 	}
 
@@ -1114,7 +1114,7 @@ func (s *Service) publishTopupEvent(ctx context.Context, vaRecord *VATopupRecord
 		UserID:    vaRecord.UserID,
 		VANumber:  vaRecord.VANumber,
 		AmountSen: vaRecord.AmountSen,
-		Status:    types.TxStatusCommitted,
+		Status:    types.TxStatusCommitted.String(),
 		CreatedAt: now,
 	}
 

@@ -326,7 +326,7 @@ func (s *Service) executeTransfer(ctx context.Context, senderID uuid.UUID, req T
 
 	return &TransferResult{
 		TxID:               txEntry.ID,
-		Status:             types.TxStatusCommitted,
+		Status:             types.TxStatusCommitted.String(),
 		AmountSen:          int64(amount),
 		FeeSen:             int64(feeAmount),
 		SenderBalanceSen:   newSenderBalance,
@@ -501,7 +501,7 @@ func (s *Service) publishNatsEvent(ctx context.Context, result *TransferResult) 
 		SenderID:   result.SenderID,
 		ReceiverID: result.ReceiverID,
 		AmountSen:  result.AmountSen,
-		Status:     types.TxStatusCommitted,
+		Status:     types.TxStatusCommitted.String(),
 		CreatedAt:  result.CreatedAt,
 	}
 

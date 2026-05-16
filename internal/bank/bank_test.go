@@ -76,8 +76,8 @@ func TestWithdrawFlow_Success(t *testing.T) {
 	if result == nil {
 		t.Fatal("result must not be nil")
 	}
-	if result.Status != types.TxStatusCommitted {
-		t.Errorf("status: got %q, want %q", result.Status, types.TxStatusCommitted)
+	if result.Status != types.TxStatusCommitted.String() {
+		t.Errorf("status: got %q, want %q", result.Status, types.TxStatusCommitted.String())
 	}
 	if result.AmountSen != 5_000_000 {
 		t.Errorf("amount: got %d, want %d", result.AmountSen, 5_000_000)

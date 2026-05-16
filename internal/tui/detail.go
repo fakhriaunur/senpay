@@ -7,6 +7,8 @@ package tui
 import (
 	"strings"
 
+	"senpay/internal/types"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -51,14 +53,14 @@ type navigateToHistoryMsg struct{}
 
 // txTypeDisplay returns the Indonesian display name for a transaction type.
 func txTypeDisplay(txType string) string {
-	switch txType {
-	case "transfer":
+	switch types.TxType(txType) {
+	case types.TxTypeTransfer:
 		return "Transfer"
-	case "topup":
+	case types.TxTypeTopup:
 		return "Top Up"
-	case "withdraw":
+	case types.TxTypeWithdraw:
 		return "Withdraw"
-	case "fee":
+	case types.TxTypeFee:
 		return "Biaya"
 	default:
 		return txType
@@ -67,16 +69,16 @@ func txTypeDisplay(txType string) string {
 
 // statusDisplay returns the Indonesian display name for a status.
 func statusDisplay(status string) string {
-	switch status {
-	case "committed":
+	switch types.TxStatus(status) {
+	case types.TxStatusCommitted:
 		return "Berhasil"
-	case "pending":
+	case types.TxStatusPending:
 		return "Pending"
-	case "failed":
+	case types.TxStatusFailed:
 		return "Gagal"
-	case "compensated":
+	case types.TxStatusCompensated:
 		return "Dikembalikan"
-	case "timeout":
+	case types.TxStatusTimeout:
 		return "Timeout"
 	default:
 		return status
@@ -85,12 +87,12 @@ func statusDisplay(status string) string {
 
 // statusColor returns the lipgloss color for a status.
 func statusColor(status string) string {
-	switch status {
-	case "committed":
+	switch types.TxStatus(status) {
+	case types.TxStatusCommitted:
 		return colorSuccess
-	case "pending":
+	case types.TxStatusPending:
 		return colorSenpai
-	case "failed", "compensated":
+	case types.TxStatusFailed, types.TxStatusCompensated:
 		return colorError
 	default:
 		return colorSecondary
@@ -100,8 +102,8 @@ func statusColor(status string) string {
 // isCredit returns true if the tx is incoming (credit) for the current user.
 // Simplified: topup is credit, transfer/withdraw/fee are debit.
 func isCredit(txType string) bool {
-	switch txType {
-	case "topup":
+	switch types.TxType(txType) {
+	case types.TxTypeTopup:
 		return true
 	default:
 		return false

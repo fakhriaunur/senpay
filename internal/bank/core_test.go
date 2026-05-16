@@ -276,8 +276,8 @@ func TestGenerateTopupCore_Valid(t *testing.T) {
 	if result.AmountSen != req.AmountSen {
 		t.Errorf("amount: got %d, want %d", result.AmountSen, req.AmountSen)
 	}
-	if result.Status != types.TxStatusPending {
-		t.Errorf("status: got %q, want %q", result.Status, types.TxStatusPending)
+	if result.Status != types.TxStatusPending.String() {
+		t.Errorf("status: got %q, want %q", result.Status, types.TxStatusPending.String())
 	}
 	if result.CreatedAt.IsZero() {
 		t.Error("created_at must not be zero")
@@ -451,8 +451,8 @@ func TestGenerateTopupCore_ResultFields(t *testing.T) {
 	if result.AmountSen != 25000000 {
 		t.Errorf("AmountSen: got %d, want %d", result.AmountSen, 25000000)
 	}
-	if result.Status != types.TxStatusPending {
-		t.Errorf("Status: got %q, want %q", result.Status, types.TxStatusPending)
+	if result.Status != types.TxStatusPending.String() {
+		t.Errorf("Status: got %q, want %q", result.Status, types.TxStatusPending.String())
 	}
 	if result.CreatedAt.IsZero() {
 		t.Error("CreatedAt must not be zero")

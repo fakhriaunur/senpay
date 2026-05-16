@@ -211,7 +211,7 @@ func GenerateTopupCore(req TopupRequest) (*TopupResult, *types.DomainError) {
 		ID:        id,
 		VANumber:  vaNumber,
 		AmountSen: req.AmountSen,
-		Status:    types.TxStatusPending,
+		Status:    types.TxStatusPending.String(),
 		CreatedAt: now,
 		ExpiresAt: now.Add(VATTL),
 	}, nil

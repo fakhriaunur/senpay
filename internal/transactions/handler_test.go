@@ -163,8 +163,8 @@ func TestHandler_List_WithTransactions(t *testing.T) {
 	}
 
 	tx := data[0].(map[string]interface{})
-	if tx["tx_type"] != types.TxTypeTransfer {
-		t.Errorf("expected tx_type %q, got %q", types.TxTypeTransfer, tx["tx_type"])
+	if tx["tx_type"] != types.TxTypeTransfer.String() {
+		t.Errorf("expected tx_type %q, got %q", types.TxTypeTransfer.String(), tx["tx_type"])
 	}
 	if tx["amount_sen"] != float64(50000) {
 		t.Errorf("expected amount_sen 50000, got %v", tx["amount_sen"])
@@ -351,14 +351,14 @@ func TestHandler_Detail_Success(t *testing.T) {
 	if data["id"] != txID.String() {
 		t.Errorf("expected id %q, got %q", txID.String(), data["id"])
 	}
-	if data["tx_type"] != types.TxTypeTransfer {
-		t.Errorf("expected tx_type %q, got %q", types.TxTypeTransfer, data["tx_type"])
+	if data["tx_type"] != types.TxTypeTransfer.String() {
+		t.Errorf("expected tx_type %q, got %q", types.TxTypeTransfer.String(), data["tx_type"])
 	}
 	if data["amount_sen"] != float64(75000) {
 		t.Errorf("expected amount_sen 75000, got %v", data["amount_sen"])
 	}
-	if data["status"] != types.TxStatusCommitted {
-		t.Errorf("expected status %q, got %q", types.TxStatusCommitted, data["status"])
+	if data["status"] != types.TxStatusCommitted.String() {
+		t.Errorf("expected status %q, got %q", types.TxStatusCommitted.String(), data["status"])
 	}
 
 	// Verify counterparty.

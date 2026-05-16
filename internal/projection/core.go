@@ -7,7 +7,7 @@ type TxEntry struct {
 	Amount     types.Money
 	SenderID   string
 	ReceiverID string
-	Status     string
+	Status     types.TxStatus
 }
 
 // ProjectBalances computes a user's projected balance by summing
@@ -26,7 +26,7 @@ func ProjectBalances(txLog []TxEntry, userID string) types.Money {
 	var balance types.Money
 
 	for _, entry := range txLog {
-		if entry.Status != "committed" {
+		if entry.Status != types.TxStatusCommitted {
 			continue
 		}
 

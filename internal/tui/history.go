@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"senpay/internal/types"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -161,10 +163,10 @@ func (h *historyScreen) Update(msg tea.Msg) (*historyScreen, tea.Cmd) {
 // For the TUI display, we simplify: transfers and fee entries are debits (outgoing),
 // topup entries are credits (incoming).
 func (h *historyScreen) isDebit(tx TransactionItem) bool {
-	switch tx.TxType {
-	case "transfer", "fee", "withdraw":
+	switch types.TxType(tx.TxType) {
+	case types.TxTypeTransfer, types.TxTypeFee, types.TxTypeWithdraw:
 		return true
-	case "topup":
+	case types.TxTypeTopup:
 		return false
 	default:
 		return false
@@ -176,12 +178,12 @@ func (h *historyScreen) counterpartyName(tx TransactionItem) string {
 	if tx.CounterpartyPhone != "" {
 		return tx.CounterpartyPhone
 	}
-	switch tx.TxType {
-	case "topup":
+	switch types.TxType(tx.TxType) {
+	case types.TxTypeTopup:
 		return "Top Up"
-	case "withdraw":
+	case types.TxTypeWithdraw:
 		return "Withdraw"
-	case "fee":
+	case types.TxTypeFee:
 		return "Biaya Transfer"
 	default:
 		return "-"
@@ -190,14 +192,14 @@ func (h *historyScreen) counterpartyName(tx TransactionItem) string {
 
 // statusIcon returns a visual status icon.
 func (h *historyScreen) statusIcon(status string) string {
-	switch status {
-	case "committed":
+	switch types.TxStatus(status) {
+	case types.TxStatusCommitted:
 		return "✓"
-	case "pending":
+	case types.TxStatusPending:
 		return "⏳"
-	case "failed":
+	case types.TxStatusFailed:
 		return "✕"
-	case "compensated":
+	case types.TxStatusCompensated:
 		return "↩"
 	default:
 		return "?"
